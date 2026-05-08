@@ -1,8 +1,16 @@
-# IPAID
+<p align="center">
+  <img src="AppIconSource.png" width="140" alt="IPAID Icon">
+</p>
 
-A lightweight iPhone IPA bundle identifier editor.
+<h1 align="center">IPAID</h1>
 
-Built for SideStore / AltStore workflows where an app needs to update over an existing install without consuming another App ID slot or losing app data.
+<p align="center">
+  Lightweight iPhone IPA bundle identifier editor.
+</p>
+
+<p align="center">
+  SideStore • AltStore • LiveContainer
+</p>
 
 ---
 
@@ -23,17 +31,9 @@ Built for SideStore / AltStore workflows where an app needs to update over an ex
 
 # Example
 
-Input:
-
-```txt
-com.exampleapp123.fire
-```
-
-Output:
-
-```txt
-com.exampleapp679.ice
-```
+<p align="center">
+  <img src="example1.PNG" width="320" alt="IPAID Example">
+</p>
 
 ---
 
@@ -71,9 +71,7 @@ to install/sign the exported IPA afterward.
 - Copy/paste helpers
 - Success haptics
 
- 
 ---
-
 
 # License
 
