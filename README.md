@@ -62,6 +62,7 @@ to install/sign the exported IPA afterward.
 
 # Current Support
 
+- Supports iOS 16.0+
 - Main app `CFBundleIdentifier`
 - `.appex` extension bundle identifiers
 - Readable export naming
