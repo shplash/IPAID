@@ -37,5 +37,53 @@
 
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+
+	<key>UISupportsDocumentBrowser</key>
+	<true/>
+
+	<key>UTImportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.shplash.ipa</string>
+
+			<key>UTTypeDescription</key>
+			<string>iOS App Archive</string>
+
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.zip-archive</string>
+				<string>public.data</string>
+			</array>
+
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>ipa</string>
+				</array>
+
+				<key>public.mime-type</key>
+				<string>application/octet-stream</string>
+			</dict>
+		</dict>
+	</array>
+
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>IPA File</string>
+
+			<key>LSHandlerRank</key>
+			<string>Owner</string>
+
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>com.shplash.ipa</string>
+				<string>public.zip-archive</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>
