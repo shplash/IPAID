@@ -4,127 +4,52 @@ import ZIPFoundation
 import UIKit
 
 struct ContentView: View {
-
     @State private var showPicker = false
-
     @State private var ipaURL: URL?
-    @State private var originalFileName = ""
-    @State private var appInfoPlistPath: String?
+    @State private var infoPlistPath: String?
 
     @State private var currentBundleID = ""
     @State private var newBundleID = ""
-
     @State private var appVersion = ""
     @State private var appBuild = ""
 
-    @State private var rewrittenExtensions = 0
-    @State private var status = "Select an IPA to begin."
+    @State private var exportFileName = ""
     @State private var exportURL: URL?
+    @State private var outputFileSize = ""
+    @State private var rewrittenExtensions = 0
+
+    @State private var status = "Select an IPA to begin."
+    @State private var isExporting = false
+
+    private var canExport: Bool {
+        let cleanBundleID = newBundleID.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanExportName = exportFileName.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        return !isExporting
+            && !cleanBundleID.isEmpty
+            && cleanBundleID != currentBundleID
+            && !cleanExportName.isEmpty
+    }
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 18) {
-
-                    Text("IPA Bundle ID Editor")
-                        .font(.largeTitle.bold())
-                        .frame(maxWidth: .infinity, alignment: .leading)
-
-                    Text(status)
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    header
 
                     Button("Select IPA") {
                         showPicker = true
                     }
                     .buttonStyle(.borderedProminent)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .disabled(isExporting)
 
                     if !currentBundleID.isEmpty {
-                        VStack(alignment: .leading, spacing: 10) {
-
-                            Text("Current Bundle ID")
-                                .font(.headline)
-
-                            HStack {
-                                Text(currentBundleID)
-                                    .font(.system(.body, design: .monospaced))
-                                    .lineLimit(1)
-                                    .truncationMode(.middle)
-                                    .textSelection(.enabled)
-
-                                Spacer()
-
-                                Button {
-                                    UIPasteboard.general.string = currentBundleID
-                                } label: {
-                                    Image(systemName: "doc.on.doc")
-                                }
-                            }
-
-                            if !appVersion.isEmpty {
-                                Text("Version \(appVersion) (\(appBuild))")
-                                    .font(.callout)
-                                    .foregroundStyle(.secondary)
-                            }
-
-                            Text("New Bundle ID")
-                                .font(.headline)
-                                .padding(.top, 8)
-
-                            HStack {
-                                TextField("com.example.app", text: $newBundleID)
-                                    .textFieldStyle(.roundedBorder)
-                                    .textInputAutocapitalization(.never)
-                                    .autocorrectionDisabled()
-
-                                Button {
-                                    if let paste = UIPasteboard.general.string {
-                                        newBundleID = paste
-                                    }
-                                } label: {
-                                    Image(systemName: "doc.on.clipboard")
-                                }
-                            }
-
-                            Button("Export Updated IPA") {
-                                exportUpdatedIPA()
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .disabled(
-                                newBundleID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                                || newBundleID == currentBundleID
-                            )
-                            .padding(.top, 8)
-
-                            if rewrittenExtensions > 0 {
-                                Text("\(rewrittenExtensions) extension bundle IDs rewritten")
-                                    .font(.callout)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        editor
                     }
 
                     if let exportURL {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Output")
-                                .font(.headline)
-
-                            Text(exportURL.lastPathComponent)
-                                .font(.system(.callout, design: .monospaced))
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                                .textSelection(.enabled)
-
-                            ShareLink(item: exportURL) {
-                                Label("Save / Share Updated IPA", systemImage: "square.and.arrow.up")
-                            }
-                            .buttonStyle(.bordered)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        outputView(exportURL)
                     }
 
                     Text("IPAID v1.0.2")
@@ -138,74 +63,311 @@ struct ContentView: View {
             }
             .sheet(isPresented: $showPicker) {
                 DocumentPicker { url in
-                    handleSelectedFile(url)
+                    loadIPA(url)
                 }
             }
         }
     }
 
-    private func handleSelectedFile(_ selected: URL) {
-        do {
-            originalFileName = selected.lastPathComponent
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("IPA Bundle ID Editor")
+                .font(.largeTitle.bold())
 
-            let temp = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString + "-" + selected.lastPathComponent)
+            Text(status)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
 
-            if FileManager.default.fileExists(atPath: temp.path) {
-                try FileManager.default.removeItem(at: temp)
+    private var editor: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Current Bundle ID")
+                .font(.headline)
+
+            copyableText(currentBundleID)
+
+            if !appVersion.isEmpty {
+                Text("Version \(appVersion) (\(appBuild))")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
             }
 
-            let didAccess = selected.startAccessingSecurityScopedResource()
+            Text("New Bundle ID")
+                .font(.headline)
+                .padding(.top, 8)
 
+            editableField(
+                placeholder: "com.example.app",
+                text: $newBundleID,
+                copyButton: false,
+                pasteButton: true
+            )
+
+            Text("Export Name")
+                .font(.headline)
+                .padding(.top, 8)
+
+            editableField(
+                placeholder: "Output IPA name",
+                text: $exportFileName,
+                copyButton: true,
+                pasteButton: false
+            )
+
+            Button(isExporting ? "Exporting…" : "Export Updated IPA") {
+                exportUpdatedIPA()
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(!canExport)
+            .padding(.top, 8)
+
+            if rewrittenExtensions > 0 {
+                Text("\(rewrittenExtensions) extension bundle IDs rewritten")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func editableField(
+        placeholder: String,
+        text: Binding<String>,
+        copyButton: Bool,
+        pasteButton: Bool
+    ) -> some View {
+        HStack {
+            TextField(placeholder, text: text)
+                .textFieldStyle(.roundedBorder)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .disabled(isExporting)
+
+            Button {
+                text.wrappedValue = ""
+            } label: {
+                Image(systemName: "xmark.circle")
+            }
+            .disabled(text.wrappedValue.isEmpty || isExporting)
+
+            if copyButton {
+                Button {
+                    UIPasteboard.general.string = text.wrappedValue
+                } label: {
+                    Image(systemName: "doc.on.doc")
+                }
+                .disabled(text.wrappedValue.isEmpty)
+            }
+
+            if pasteButton {
+                Button {
+                    newBundleID = UIPasteboard.general.string ?? newBundleID
+                } label: {
+                    Image(systemName: "doc.on.clipboard")
+                }
+                .disabled(isExporting)
+            }
+        }
+    }
+
+    private func copyableText(_ value: String) -> some View {
+        HStack {
+            Text(value)
+                .font(.system(.body, design: .monospaced))
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .textSelection(.enabled)
+
+            Spacer()
+
+            Button {
+                UIPasteboard.general.string = value
+            } label: {
+                Image(systemName: "doc.on.doc")
+            }
+        }
+    }
+
+    private func outputView(_ url: URL) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Output")
+                .font(.headline)
+
+            Text(outputFileSize.isEmpty ? url.lastPathComponent : "\(url.lastPathComponent) · \(outputFileSize)")
+                .font(.system(.callout, design: .monospaced))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .textSelection(.enabled)
+                .onTapGesture {
+                    UIPasteboard.general.string = url.lastPathComponent
+                }
+
+            ShareLink(item: url) {
+                Label("Save / Share Updated IPA", systemImage: "square.and.arrow.up")
+            }
+            .buttonStyle(.bordered)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func loadIPA(_ selectedURL: URL) {
+        do {
+            let tempURL = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .appendingPathExtension("ipa")
+
+            let didAccess = selectedURL.startAccessingSecurityScopedResource()
             defer {
                 if didAccess {
-                    selected.stopAccessingSecurityScopedResource()
+                    selectedURL.stopAccessingSecurityScopedResource()
                 }
             }
 
-            try FileManager.default.copyItem(at: selected, to: temp)
+            try FileManager.default.copyItem(at: selectedURL, to: tempURL)
 
-            ipaURL = temp
+            let bundleInfo = try readBundleInfo(from: tempURL)
+
+            ipaURL = tempURL
+            infoPlistPath = bundleInfo.path
+            currentBundleID = bundleInfo.bundleID
+            newBundleID = bundleInfo.bundleID
+            appVersion = bundleInfo.version
+            appBuild = bundleInfo.build
+            exportFileName = defaultExportFileName(for: selectedURL)
             exportURL = nil
+            outputFileSize = ""
             rewrittenExtensions = 0
-
-            let (path, id, version, build) = try readBundleInfo(from: temp)
-
-            appInfoPlistPath = path
-            currentBundleID = id
-            newBundleID = id
-            appVersion = version
-            appBuild = build
-
-            status = "Loaded: \(selected.lastPathComponent)"
-
+            isExporting = false
+            status = "Loaded: \(selectedURL.lastPathComponent)"
         } catch {
-            UINotificationFeedbackGenerator()
-                .notificationOccurred(.error)
-
-            status = """
-            IPA recommended over ZIP for compatibility.
-
-            Import failed: \(error.localizedDescription)
-            """
+            notify(.error)
+            status = "Import failed: \(error.localizedDescription)"
         }
     }
 
-    private func readBundleInfo(from ipa: URL) throws -> (String, String, String, String) {
+    private func readBundleInfo(from ipa: URL) throws -> BundleInfo {
         guard let archive = Archive(url: ipa, accessMode: .read) else {
             throw SimpleError("Selected file is not a valid IPA/ZIP archive.")
         }
 
-        guard let entry = archive.first(where: { entry in
-            entry.path.hasPrefix("Payload/")
-            && entry.path.hasSuffix(".app/Info.plist")
-            && !entry.path.contains(".appex/")
+        guard let entry = archive.first(where: {
+            $0.path.hasPrefix("Payload/")
+                && $0.path.hasSuffix(".app/Info.plist")
+                && !$0.path.contains(".appex/")
         }) else {
             throw SimpleError("Could not find Payload/*.app/Info.plist.")
         }
 
-        let data = try extractData(entry: entry, from: archive)
+        let plist = try decodePlist(try extractData(entry: entry, from: archive))
 
+        guard let bundleID = plist["CFBundleIdentifier"] as? String else {
+            throw SimpleError("Info.plist has no CFBundleIdentifier.")
+        }
+
+        return BundleInfo(
+            path: entry.path,
+            bundleID: bundleID,
+            version: plist["CFBundleShortVersionString"] as? String ?? "Unknown",
+            build: plist["CFBundleVersion"] as? String ?? "Unknown"
+        )
+    }
+
+    private func exportUpdatedIPA() {
+        guard !isExporting else { return }
+        isExporting = true
+        defer { isExporting = false }
+
+        do {
+            guard let inputURL = ipaURL else {
+                throw SimpleError("No IPA selected.")
+            }
+
+            guard let mainInfoPlistPath = infoPlistPath else {
+                throw SimpleError("No Info.plist path found.")
+            }
+
+            let cleanBundleID = newBundleID.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard cleanBundleID.contains(".") else {
+                throw SimpleError("Bundle ID looks invalid.")
+            }
+
+            guard let inputArchive = Archive(url: inputURL, accessMode: .read) else {
+                throw SimpleError("Could not reopen IPA.")
+            }
+
+            let outputURL = uniqueOutputURL(input: inputURL)
+            guard let outputArchive = Archive(url: outputURL, accessMode: .create) else {
+                throw SimpleError("Could not create output IPA.")
+            }
+
+            rewrittenExtensions = 0
+
+            for entry in inputArchive where entry.type != .directory {
+                let updatedData = try updatedEntryData(
+                    entry,
+                    in: inputArchive,
+                    mainInfoPlistPath: mainInfoPlistPath,
+                    newBundleID: cleanBundleID
+                )
+
+                try outputArchive.addEntry(
+                    with: entry.path,
+                    type: .file,
+                    uncompressedSize: UInt32(updatedData.count),
+                    provider: { position, size in
+                        updatedData.subdata(in: Int(position)..<Int(position) + size)
+                    }
+                )
+            }
+
+            exportURL = outputURL
+            exportFileName = outputURL.lastPathComponent
+            outputFileSize = readableFileSize(for: outputURL)
+            status = "Exported updated IPA. Original file was not replaced."
+            notify(.success)
+        } catch {
+            status = "Export failed: \(error.localizedDescription)"
+            notify(.error)
+        }
+    }
+
+    private func updatedEntryData(
+        _ entry: Entry,
+        in archive: Archive,
+        mainInfoPlistPath: String,
+        newBundleID: String
+    ) throws -> Data {
+        var data = try extractData(entry: entry, from: archive)
+        let isMainInfoPlist = entry.path == mainInfoPlistPath
+        let isExtensionInfoPlist = entry.path.hasSuffix("Info.plist") && entry.path.contains(".appex/")
+
+        guard isMainInfoPlist || isExtensionInfoPlist else {
+            return data
+        }
+
+        var plist = try decodePlist(data)
+
+        if isMainInfoPlist {
+            plist["CFBundleIdentifier"] = newBundleID
+        } else if let oldBundleID = plist["CFBundleIdentifier"] as? String,
+                  let extensionSuffix = oldBundleID.split(separator: ".").last {
+            plist["CFBundleIdentifier"] = "\(newBundleID).\(extensionSuffix)"
+            rewrittenExtensions += 1
+        }
+
+        data = try PropertyListSerialization.data(
+            fromPropertyList: plist,
+            format: .xml,
+            options: 0
+        )
+
+        return data
+    }
+
+    private func decodePlist(_ data: Data) throws -> [String: Any] {
         let plist = try PropertyListSerialization.propertyList(
             from: data,
             options: [],
@@ -216,149 +378,74 @@ struct ContentView: View {
             throw SimpleError("Invalid Info.plist.")
         }
 
-        guard let id = dict["CFBundleIdentifier"] as? String else {
-            throw SimpleError("Info.plist has no CFBundleIdentifier.")
-        }
-
-        let version = dict["CFBundleShortVersionString"] as? String ?? "Unknown"
-        let build = dict["CFBundleVersion"] as? String ?? "Unknown"
-
-        return (entry.path, id, version, build)
+        return dict
     }
 
-    private func exportUpdatedIPA() {
-        do {
-            guard let input = ipaURL else {
-                throw SimpleError("No IPA selected.")
-            }
-
-            guard let targetPlist = appInfoPlistPath else {
-                throw SimpleError("No Info.plist path found.")
-            }
-
-            let cleanID = newBundleID.trimmingCharacters(in: .whitespacesAndNewlines)
-
-            guard cleanID.contains(".") else {
-                throw SimpleError("Bundle ID looks invalid.")
-            }
-
-            guard let inputArchive = Archive(url: input, accessMode: .read) else {
-                throw SimpleError("Could not reopen IPA.")
-            }
-
-            let output = makeReadableOutputURL(input: input)
-
-            guard let outputArchive = Archive(url: output, accessMode: .create) else {
-                throw SimpleError("Could not create output IPA.")
-            }
-
-            rewrittenExtensions = 0
-
-            for entry in inputArchive {
-                if entry.type == .directory {
-                    continue
-                }
-
-                var data = try extractData(entry: entry, from: inputArchive)
-
-                let isMainInfoPlist = entry.path == targetPlist
-
-                let isExtensionInfoPlist =
-                    entry.path.hasSuffix("Info.plist")
-                    && entry.path.contains(".appex/")
-
-                if isMainInfoPlist || isExtensionInfoPlist {
-                    let plist = try PropertyListSerialization.propertyList(
-                        from: data,
-                        options: [],
-                        format: nil
-                    )
-
-                    guard var dict = plist as? [String: Any] else {
-                        throw SimpleError("Could not edit Info.plist.")
-                    }
-
-                    if let oldID = dict["CFBundleIdentifier"] as? String {
-                        if isMainInfoPlist {
-                            dict["CFBundleIdentifier"] = cleanID
-                        } else {
-                            let lastComponent = oldID.split(separator: ".").last ?? ""
-                            dict["CFBundleIdentifier"] = cleanID + "." + lastComponent
-                            rewrittenExtensions += 1
-                        }
-                    }
-
-                    data = try PropertyListSerialization.data(
-                        fromPropertyList: dict,
-                        format: .xml,
-                        options: 0
-                    )
-                }
-
-                try outputArchive.addEntry(
-                    with: entry.path,
-                    type: .file,
-                    uncompressedSize: UInt32(data.count),
-                    provider: { position, size -> Data in
-                        data.subdata(in: Int(position)..<Int(position) + size)
-                    }
-                )
-            }
-
-            exportURL = output
-
-            UINotificationFeedbackGenerator()
-                .notificationOccurred(.success)
-
-            status = "Exported updated IPA. Original file was not replaced."
-
-        } catch {
-            UINotificationFeedbackGenerator()
-                .notificationOccurred(.error)
-
-            status = "Export failed: \(error.localizedDescription)"
-        }
+    private func defaultExportFileName(for input: URL) -> String {
+        let baseName = input.deletingPathExtension().lastPathComponent
+        return "\(baseName)-bundlechangedv1.ipa"
     }
 
-    private func makeReadableOutputURL(input: URL) -> URL {
-        let baseName: String
-
-        if !originalFileName.isEmpty {
-            baseName = URL(fileURLWithPath: originalFileName)
-                .deletingPathExtension()
-                .lastPathComponent
-        } else {
-            baseName = input
-                .deletingPathExtension()
-                .lastPathComponent
-        }
-
+    private func uniqueOutputURL(input: URL) -> URL {
         let folder = FileManager.default.temporaryDirectory
+        let cleanName = sanitizedIPAFileName(exportFileName, fallback: defaultExportFileName(for: input))
+        var candidate = folder.appendingPathComponent(cleanName)
 
-        var version = 1
-        var candidate = folder.appendingPathComponent("\(baseName)-bundlechangedv\(version).ipa")
-
-        while FileManager.default.fileExists(atPath: candidate.path) {
-            version += 1
-            candidate = folder.appendingPathComponent("\(baseName)-bundlechangedv\(version).ipa")
+        guard FileManager.default.fileExists(atPath: candidate.path) else {
+            return candidate
         }
+
+        let baseName = candidate.deletingPathExtension().lastPathComponent
+        var suffix = 2
+
+        repeat {
+            candidate = folder.appendingPathComponent("\(baseName)-\(suffix).ipa")
+            suffix += 1
+        } while FileManager.default.fileExists(atPath: candidate.path)
 
         return candidate
     }
 
-    private func extractData(entry: Entry, from archive: Archive) throws -> Data {
-        var data = Data()
+    private func sanitizedIPAFileName(_ name: String, fallback: String) -> String {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let rawName = trimmed.isEmpty ? fallback : trimmed
+        let illegalCharacters = CharacterSet(charactersIn: "/\\?%*|\"<>:")
+        let cleaned = rawName
+            .components(separatedBy: illegalCharacters)
+            .joined(separator: "-")
+            .trimmingCharacters(in: CharacterSet(charactersIn: ". ").union(.whitespacesAndNewlines))
 
-        _ = try archive.extract(entry) { chunk in
-            data.append(chunk)
+        let safeName = cleaned.isEmpty ? "UpdatedIPA" : cleaned
+        return safeName.lowercased().hasSuffix(".ipa") ? safeName : safeName + ".ipa"
+    }
+
+    private func readableFileSize(for url: URL) -> String {
+        guard let size = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize else {
+            return ""
         }
 
+        return ByteCountFormatter.string(fromByteCount: Int64(size), countStyle: .file)
+    }
+
+    private func extractData(entry: Entry, from archive: Archive) throws -> Data {
+        var data = Data()
+        _ = try archive.extract(entry) { data.append($0) }
         return data
+    }
+
+    private func notify(_ type: UINotificationFeedbackGenerator.FeedbackType) {
+        UINotificationFeedbackGenerator().notificationOccurred(type)
     }
 }
 
-struct DocumentPicker: UIViewControllerRepresentable {
+private struct BundleInfo {
+    let path: String
+    let bundleID: String
+    let version: String
+    let build: String
+}
 
+struct DocumentPicker: UIViewControllerRepresentable {
     let onPick: (URL) -> Void
 
     func makeCoordinator() -> Coordinator {
@@ -366,37 +453,23 @@ struct DocumentPicker: UIViewControllerRepresentable {
     }
 
     func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
-        let picker = UIDocumentPickerViewController(
-            forOpeningContentTypes: [.item],
-            asCopy: true
-        )
-
+        let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.item], asCopy: true)
         picker.allowsMultipleSelection = false
         picker.delegate = context.coordinator
         return picker
     }
 
-    func updateUIViewController(
-        _ uiViewController: UIDocumentPickerViewController,
-        context: Context
-    ) {}
+    func updateUIViewController(_ uiViewController: UIDocumentPickerViewController, context: Context) {}
 
     final class Coordinator: NSObject, UIDocumentPickerDelegate {
-
         let onPick: (URL) -> Void
 
         init(onPick: @escaping (URL) -> Void) {
             self.onPick = onPick
         }
 
-        func documentPicker(
-            _ controller: UIDocumentPickerViewController,
-            didPickDocumentsAt urls: [URL]
-        ) {
-            guard let url = urls.first else {
-                return
-            }
-
+        func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+            guard let url = urls.first else { return }
             onPick(url)
         }
     }
