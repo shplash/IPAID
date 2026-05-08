@@ -3,12 +3,19 @@ import UniformTypeIdentifiers
 import ZIPFoundation
 
 struct ContentView: View {
+
     @State private var showImporter = false
+
     @State private var ipaURL: URL?
+    @State private var originalFileName = ""
+
     @State private var appInfoPlistPath: String?
+
     @State private var currentBundleID = ""
     @State private var newBundleID = ""
+
     @State private var status = "Select an IPA to begin."
+
     @State private var exportURL: URL?
 
     private var ipaType: UTType {
@@ -16,8 +23,11 @@ struct ContentView: View {
     }
 
     var body: some View {
+
         NavigationStack {
+
             VStack(spacing: 18) {
+
                 Text("IPA Bundle ID Editor")
                     .font(.largeTitle.bold())
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -34,9 +44,12 @@ struct ContentView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
 
                 if !currentBundleID.isEmpty {
+
                     VStack(alignment: .leading, spacing: 8) {
+
                         Text("Current Bundle ID")
                             .font(.headline)
+
                         Text(currentBundleID)
                             .font(.system(.body, design: .monospaced))
                             .textSelection(.enabled)
@@ -54,17 +67,37 @@ struct ContentView: View {
                             exportUpdatedIPA()
                         }
                         .buttonStyle(.borderedProminent)
-                        .disabled(newBundleID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        .disabled(
+                            newBundleID
+                                .trimmingCharacters(in: .whitespacesAndNewlines)
+                                .isEmpty
+                        )
                         .padding(.top, 8)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
                 if let exportURL {
-                    ShareLink(item: exportURL) {
-                        Label("Save / Share Updated IPA", systemImage: "square.and.arrow.up")
+
+                    VStack(alignment: .leading, spacing: 8) {
+
+                        Text("Output")
+                            .font(.headline)
+
+                        Text(exportURL.lastPathComponent)
+                            .font(.system(.callout, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
+
+                        ShareLink(item: exportURL) {
+                            Label(
+                                "Save / Share Updated IPA",
+                                systemImage: "square.and.arrow.up"
+                            )
+                        }
+                        .buttonStyle(.bordered)
                     }
-                    .buttonStyle(.bordered)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
                 Spacer()
@@ -81,99 +114,197 @@ struct ContentView: View {
     }
 
     private func handleImport(_ result: Result<[URL], Error>) {
-        do {
-            guard let selected = try result.get().first else { return }
 
-            let didAccess = selected.startAccessingSecurityScopedResource()
-            defer {
-                if didAccess { selected.stopAccessingSecurityScopedResource() }
+        do {
+
+            guard let selected = try result.get().first else {
+                return
             }
 
-            let temp = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString + "-" + selected.lastPathComponent)
+            let didAccess =
+                selected.startAccessingSecurityScopedResource()
+
+            defer {
+                if didAccess {
+                    selected.stopAccessingSecurityScopedResource()
+                }
+            }
+
+            originalFileName = selected.lastPathComponent
+
+            let temp =
+                FileManager.default.temporaryDirectory
+                .appendingPathComponent(
+                    UUID().uuidString + "-" + selected.lastPathComponent
+                )
 
             if FileManager.default.fileExists(atPath: temp.path) {
                 try FileManager.default.removeItem(at: temp)
             }
+
             try FileManager.default.copyItem(at: selected, to: temp)
 
             ipaURL = temp
             exportURL = nil
 
             let (path, id) = try readBundleID(from: temp)
+
             appInfoPlistPath = path
+
             currentBundleID = id
             newBundleID = id
 
             status = "Loaded: \(selected.lastPathComponent)"
+
         } catch {
+
             status = "Import failed: \(error.localizedDescription)"
         }
     }
 
     private func readBundleID(from ipa: URL) throws -> (String, String) {
+
         guard let archive = Archive(url: ipa, accessMode: .read) else {
             throw SimpleError("Could not open IPA as ZIP.")
         }
 
         guard let entry = archive.first(where: { entry in
+
             entry.path.hasPrefix("Payload/")
             && entry.path.hasSuffix(".app/Info.plist")
             && !entry.path.contains(".appex/")
+
         }) else {
-            throw SimpleError("Could not find Payload/*.app/Info.plist.")
+
+            throw SimpleError(
+                "Could not find Payload/*.app/Info.plist."
+            )
         }
 
         let data = try extractData(entry: entry, from: archive)
-        let plist = try PropertyListSerialization.propertyList(from: data, options: [], format: nil)
+
+        let plist =
+            try PropertyListSerialization.propertyList(
+                from: data,
+                options: [],
+                format: nil
+            )
 
         guard
             let dict = plist as? [String: Any],
             let id = dict["CFBundleIdentifier"] as? String
         else {
-            throw SimpleError("Info.plist has no CFBundleIdentifier.")
+            throw SimpleError(
+                "Info.plist has no CFBundleIdentifier."
+            )
         }
 
         return (entry.path, id)
     }
 
     private func exportUpdatedIPA() {
-        do {
-            guard let input = ipaURL else { throw SimpleError("No IPA selected.") }
-            guard let targetPlist = appInfoPlistPath else { throw SimpleError("No Info.plist path found.") }
 
-            let cleanID = newBundleID.trimmingCharacters(in: .whitespacesAndNewlines)
+        do {
+
+            guard let input = ipaURL else {
+                throw SimpleError("No IPA selected.")
+            }
+
+            guard let targetPlist = appInfoPlistPath else {
+                throw SimpleError("No Info.plist path found.")
+            }
+
+            let cleanID =
+                newBundleID
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+
             guard cleanID.contains(".") else {
                 throw SimpleError("Bundle ID looks invalid.")
             }
 
-            guard let inputArchive = Archive(url: input, accessMode: .read) else {
+            guard let inputArchive =
+                Archive(url: input, accessMode: .read)
+            else {
                 throw SimpleError("Could not reopen IPA.")
             }
 
-            let output = FileManager.default.temporaryDirectory
-                .appendingPathComponent("Updated-" + input.deletingPathExtension().lastPathComponent + ".ipa")
+            let output =
+                makeReadableOutputURL(
+                    input: input,
+                    bundleID: cleanID
+                )
 
             if FileManager.default.fileExists(atPath: output.path) {
                 try FileManager.default.removeItem(at: output)
             }
 
-            guard let outputArchive = Archive(url: output, accessMode: .create) else {
+            guard let outputArchive =
+                Archive(url: output, accessMode: .create)
+            else {
                 throw SimpleError("Could not create output IPA.")
             }
 
             for entry in inputArchive {
-                if entry.type == .directory { continue }
 
-                var data = try extractData(entry: entry, from: inputArchive)
+                if entry.type == .directory {
+                    continue
+                }
 
-                if entry.path == targetPlist {
-                    let plist = try PropertyListSerialization.propertyList(from: data, options: [], format: nil)
-                    guard var dict = plist as? [String: Any] else {
-                        throw SimpleError("Could not edit Info.plist.")
+                var data =
+                    try extractData(
+                        entry: entry,
+                        from: inputArchive
+                    )
+
+                let isMainInfoPlist =
+                    entry.path == targetPlist
+
+                let isExtensionInfoPlist =
+                    entry.path.hasSuffix("Info.plist")
+                    && entry.path.contains(".appex/")
+
+                if isMainInfoPlist || isExtensionInfoPlist {
+
+                    let plist =
+                        try PropertyListSerialization.propertyList(
+                            from: data,
+                            options: [],
+                            format: nil
+                        )
+
+                    guard var dict =
+                        plist as? [String: Any]
+                    else {
+                        throw SimpleError(
+                            "Could not edit Info.plist."
+                        )
                     }
-                    dict["CFBundleIdentifier"] = cleanID
-                    data = try PropertyListSerialization.data(fromPropertyList: dict, format: .xml, options: 0)
+
+                    if let oldID =
+                        dict["CFBundleIdentifier"] as? String {
+
+                        if isMainInfoPlist {
+
+                            dict["CFBundleIdentifier"] = cleanID
+
+                        } else {
+
+                            let lastComponent =
+                                oldID
+                                .split(separator: ".")
+                                .last ?? ""
+
+                            dict["CFBundleIdentifier"] =
+                                cleanID + "." + lastComponent
+                        }
+                    }
+
+                    data =
+                        try PropertyListSerialization.data(
+                            fromPropertyList: dict,
+                            format: .xml,
+                            options: 0
+                        )
                 }
 
                 try outputArchive.addEntry(
@@ -181,31 +312,84 @@ struct ContentView: View {
                     type: .file,
                     uncompressedSize: UInt32(data.count),
                     provider: { position, size -> Data in
-                        return data.subdata(in: Int(position)..<Int(position) + size)
+
+                        data.subdata(
+                            in: Int(position)..<Int(position) + size
+                        )
                     }
                 )
             }
 
             exportURL = output
+
             currentBundleID = cleanID
-            status = "Exported updated IPA. Use the share button to save it to Files or send to SideStore."
+
+            status =
+                "Exported updated IPA. Original file was not replaced."
+
         } catch {
+
             status = "Export failed: \(error.localizedDescription)"
         }
     }
 
-    private func extractData(entry: Entry, from archive: Archive) throws -> Data {
+    private func makeReadableOutputURL(
+        input: URL,
+        bundleID: String
+    ) -> URL {
+
+        let baseName: String
+
+        if !originalFileName.isEmpty {
+
+            baseName =
+                URL(fileURLWithPath: originalFileName)
+                .deletingPathExtension()
+                .lastPathComponent
+
+        } else {
+
+            baseName =
+                input
+                .deletingPathExtension()
+                .lastPathComponent
+        }
+
+        let safeBundleID =
+            bundleID
+            .replacingOccurrences(of: ".", with: "-")
+            .replacingOccurrences(of: " ", with: "")
+
+        let fileName =
+            "\(baseName)-bundleid-\(safeBundleID).ipa"
+
+        return
+            FileManager.default.temporaryDirectory
+            .appendingPathComponent(fileName)
+    }
+
+    private func extractData(
+        entry: Entry,
+        from archive: Archive
+    ) throws -> Data {
+
         var data = Data()
+
         _ = try archive.extract(entry) { chunk in
             data.append(chunk)
         }
+
         return data
     }
 }
 
 struct SimpleError: LocalizedError {
+
     let message: String
-    init(_ message: String) { self.message = message }
+
+    init(_ message: String) {
+        self.message = message
+    }
 
     var errorDescription: String? {
         message
