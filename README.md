@@ -1,11 +1,5 @@
 # IPAID
 
----
-
-Supports iOS 16.0+
-
----
-
 A lightweight iPhone IPA bundle identifier editor.
 
 Built for SideStore / AltStore workflows where an app needs to update over an existing install without consuming another App ID slot or losing app data.
