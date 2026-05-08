@@ -1,6 +1,7 @@
 import SwiftUI
 import UniformTypeIdentifiers
 import ZIPFoundation
+import UIKit
 
 struct ContentView: View {
 
@@ -14,9 +15,16 @@ struct ContentView: View {
     @State private var currentBundleID = ""
     @State private var newBundleID = ""
 
+    @State private var appVersion = ""
+    @State private var appBuild = ""
+
+    @State private var rewrittenExtensions = 0
+
     @State private var status = "Select an IPA to begin."
 
     @State private var exportURL: URL?
+
+    @State private var iconImage: UIImage?
 
     private var ipaType: UTType {
         UTType(filenameExtension: "ipa") ?? .zip
@@ -26,83 +34,140 @@ struct ContentView: View {
 
         NavigationStack {
 
-            VStack(spacing: 18) {
+            ScrollView {
 
-                Text("IPA Bundle ID Editor")
-                    .font(.largeTitle.bold())
+                VStack(spacing: 18) {
+
+                    Text("IPA Bundle ID Editor")
+                        .font(.largeTitle.bold())
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                    Text(status)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                    if let iconImage {
+
+                        Image(uiImage: iconImage)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 90, height: 90)
+                            .clipShape(RoundedRectangle(cornerRadius: 20))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    Button("Select IPA") {
+                        showImporter = true
+                    }
+                    .buttonStyle(.borderedProminent)
                     .frame(maxWidth: .infinity, alignment: .leading)
 
-                Text(status)
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    if !currentBundleID.isEmpty {
 
-                Button("Select IPA") {
-                    showImporter = true
-                }
-                .buttonStyle(.borderedProminent)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                        VStack(alignment: .leading, spacing: 10) {
 
-                if !currentBundleID.isEmpty {
+                            Text("Current Bundle ID")
+                                .font(.headline)
 
-                    VStack(alignment: .leading, spacing: 8) {
+                            HStack {
 
-                        Text("Current Bundle ID")
-                            .font(.headline)
+                                Text(currentBundleID)
+                                    .font(.system(.body, design: .monospaced))
+                                    .textSelection(.enabled)
 
-                        Text(currentBundleID)
-                            .font(.system(.body, design: .monospaced))
-                            .textSelection(.enabled)
+                                Spacer()
 
-                        Text("New Bundle ID")
-                            .font(.headline)
+                                Button {
+                                    UIPasteboard.general.string = currentBundleID
+                                } label: {
+                                    Image(systemName: "doc.on.doc")
+                                }
+                            }
+
+                            if !appVersion.isEmpty {
+
+                                Text("Version \(appVersion) (\(appBuild))")
+                                    .font(.callout)
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            Text("New Bundle ID")
+                                .font(.headline)
+                                .padding(.top, 8)
+
+                            HStack {
+
+                                TextField(
+                                    "com.example.app",
+                                    text: $newBundleID
+                                )
+                                .textFieldStyle(.roundedBorder)
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
+
+                                Button {
+                                    if let paste = UIPasteboard.general.string {
+                                        newBundleID = paste
+                                    }
+                                } label: {
+                                    Image(systemName: "doc.on.clipboard")
+                                }
+                            }
+
+                            Button("Export Updated IPA") {
+                                exportUpdatedIPA()
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(
+                                newBundleID
+                                    .trimmingCharacters(
+                                        in: .whitespacesAndNewlines
+                                    )
+                                    .isEmpty
+                                || newBundleID == currentBundleID
+                            )
                             .padding(.top, 8)
 
-                        TextField("com.example.app", text: $newBundleID)
-                            .textFieldStyle(.roundedBorder)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
+                            if rewrittenExtensions > 0 {
 
-                        Button("Export Updated IPA") {
-                            exportUpdatedIPA()
+                                Text(
+                                    "\(rewrittenExtensions) extension bundle IDs rewritten"
+                                )
+                                .font(.callout)
+                                .foregroundStyle(.secondary)
+                            }
                         }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(
-                            newBundleID
-                                .trimmingCharacters(in: .whitespacesAndNewlines)
-                                .isEmpty
-                        )
-                        .padding(.top, 8)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
 
-                if let exportURL {
+                    if let exportURL {
 
-                    VStack(alignment: .leading, spacing: 8) {
+                        VStack(alignment: .leading, spacing: 8) {
 
-                        Text("Output")
-                            .font(.headline)
+                            Text("Output")
+                                .font(.headline)
 
-                        Text(exportURL.lastPathComponent)
-                            .font(.system(.callout, design: .monospaced))
-                            .foregroundStyle(.secondary)
-                            .textSelection(.enabled)
+                            Text(exportURL.lastPathComponent)
+                                .font(.system(.callout, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                                .textSelection(.enabled)
 
-                        ShareLink(item: exportURL) {
-                            Label(
-                                "Save / Share Updated IPA",
-                                systemImage: "square.and.arrow.up"
-                            )
+                            ShareLink(item: exportURL) {
+                                Label(
+                                    "Save / Share Updated IPA",
+                                    systemImage: "square.and.arrow.up"
+                                )
+                            }
+                            .buttonStyle(.bordered)
                         }
-                        .buttonStyle(.bordered)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
 
-                Spacer()
+                    Spacer()
+                }
+                .padding()
             }
-            .padding()
             .fileImporter(
                 isPresented: $showImporter,
                 allowedContentTypes: [ipaType, .zip],
@@ -146,13 +211,20 @@ struct ContentView: View {
 
             ipaURL = temp
             exportURL = nil
+            rewrittenExtensions = 0
 
-            let (path, id) = try readBundleID(from: temp)
+            let (path, id, version, build, icon) =
+                try readBundleInfo(from: temp)
 
             appInfoPlistPath = path
 
             currentBundleID = id
             newBundleID = id
+
+            appVersion = version
+            appBuild = build
+
+            iconImage = icon
 
             status = "Loaded: \(selected.lastPathComponent)"
 
@@ -162,7 +234,9 @@ struct ContentView: View {
         }
     }
 
-    private func readBundleID(from ipa: URL) throws -> (String, String) {
+    private func readBundleInfo(
+        from ipa: URL
+    ) throws -> (String, String, String, String, UIImage?) {
 
         guard let archive = Archive(url: ipa, accessMode: .read) else {
             throw SimpleError("Could not open IPA as ZIP.")
@@ -190,16 +264,29 @@ struct ContentView: View {
                 format: nil
             )
 
-        guard
-            let dict = plist as? [String: Any],
-            let id = dict["CFBundleIdentifier"] as? String
-        else {
+        guard let dict = plist as? [String: Any] else {
+            throw SimpleError("Invalid Info.plist.")
+        }
+
+        guard let id = dict["CFBundleIdentifier"] as? String else {
             throw SimpleError(
                 "Info.plist has no CFBundleIdentifier."
             )
         }
 
-        return (entry.path, id)
+        let version =
+            dict["CFBundleShortVersionString"] as? String ?? "Unknown"
+
+        let build =
+            dict["CFBundleVersion"] as? String ?? "Unknown"
+
+        return (
+            entry.path,
+            id,
+            version,
+            build,
+            nil
+        )
     }
 
     private func exportUpdatedIPA() {
@@ -243,6 +330,8 @@ struct ContentView: View {
             else {
                 throw SimpleError("Could not create output IPA.")
             }
+
+            rewrittenExtensions = 0
 
             for entry in inputArchive {
 
@@ -296,6 +385,8 @@ struct ContentView: View {
 
                             dict["CFBundleIdentifier"] =
                                 cleanID + "." + lastComponent
+
+                            rewrittenExtensions += 1
                         }
                     }
 
@@ -323,6 +414,9 @@ struct ContentView: View {
             exportURL = output
 
             currentBundleID = cleanID
+
+            UINotificationFeedbackGenerator()
+                .notificationOccurred(.success)
 
             status =
                 "Exported updated IPA. Original file was not replaced."
