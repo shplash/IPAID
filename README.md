@@ -1,16 +1,31 @@
 # IPAID
 
-Tiny iOS app for changing an IPA's main app bundle identifier.
+A lightweight iPhone IPA bundle identifier editor.
 
-## What it does
+Built for SideStore / AltStore style workflows where an app needs to update over an existing install without taking another App ID slot or losing app data.
 
-- Select an `.ipa` from Files
-- Reads `Payload/*.app/Info.plist`
-- Shows `CFBundleIdentifier`
-- Lets you change it
-- Rebuilds a new `.ipa`
-- Lets you save/share it back to Files or SideStore
+---
 
-## Notes
+# Features
 
-This does not sign the IPA. SideStore/AltStore/etc will still need to sign it during install.
+- Select `.ipa` files directly from Files
+- Read app bundle identifiers
+- Edit main app bundle identifier
+- Automatically rewrite `.appex` extension bundle identifiers
+- Export updated `.ipa`
+- Keeps original IPA untouched
+- Generates readable export filenames
+- No certificate required for editing
+- iPhone-only workflow
+- Works before signing
+
+---
+
+# Example
+
+Input:
+
+```txt
+MeloVertex.ipa
+Bundle ID:
+com.vertexselection.MeloVertex
