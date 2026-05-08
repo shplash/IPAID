@@ -127,7 +127,7 @@ struct ContentView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
 
-                    Text("IPAID v1.0.1")
+                    Text("IPAID v1.0.2")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .padding(.top, 20)
