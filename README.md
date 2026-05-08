@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="AppIconSource.png" width="140" alt="IPAID Icon">
+  <img src="assets/AppIconSource.png" width="140" alt="IPAID Icon">
 </p>
 
 <h1 align="center">IPAID</h1>
@@ -32,7 +32,7 @@
 # Example
 
 <p align="center">
-  <img src="example1.PNG" width="320" alt="IPAID Example">
+  <img src="assets/example1.PNG" width="320" alt="IPAID Example">
 </p>
 
 ---
