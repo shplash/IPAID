@@ -2,7 +2,7 @@
 
 A lightweight iPhone IPA bundle identifier editor.
 
-Built for SideStore / AltStore style workflows where an app needs to update over an existing install without taking another App ID slot or losing app data.
+Built for SideStore / AltStore workflows where an app needs to update over an existing install without consuming another App ID slot or losing app data.
 
 ---
 
@@ -10,22 +10,20 @@ Built for SideStore / AltStore style workflows where an app needs to update over
 
 - Select `.ipa` files directly from Files
 - Read app bundle identifiers
-- Edit main app bundle identifier
+- Edit main app bundle identifiers
 - Automatically rewrite `.appex` extension bundle identifiers
-- Export updated `.ipa`
+- Export updated `.ipa` files
 - Keeps original IPA untouched
 - Generates readable export filenames
 - No certificate required for editing
-- iPhone-only workflow
+- Fully iPhone-native workflow
 - Works before signing
 
 ---
 
 # Example
 
-Input:
+Original IPA:
 
 ```txt
-MeloVertex.ipa
-Bundle ID:
-com.vertexselection.MeloVertex
+ExampleApp.ipa
