@@ -23,7 +23,49 @@ Built for SideStore / AltStore workflows where an app needs to update over an ex
 
 # Example
 
-Original IPA:
+Input:
 
 ```txt
-ExampleApp.ipa
+com.exampleapp123.fire
+```
+
+Output:
+
+```txt
+com.exampleapp679.ice
+```
+
+---
+
+# Why
+
+Most iOS signing apps tie bundle identifier editing to signing workflows or certificate setup.
+
+IPAID directly edits the IPA itself before SideStore/AltStore signing.
+
+---
+
+# Notes
+
+IPAID does NOT sign apps directly.
+
+Use:
+- SideStore
+- AltStore
+- Feather
+- LiveContainer
+- etc
+
+to install/sign the exported IPA afterward.
+
+---
+
+# Current Support
+
+- Main app `CFBundleIdentifier`
+- `.appex` extension bundle identifiers
+- Readable export naming
+- Extension rewrite counting
+- Version/build display
+- Copy/paste helpers
+- Success haptics
