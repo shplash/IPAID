@@ -2,7 +2,6 @@ name: Build IPA
 
 on:
   workflow_dispatch:
-  push:
     
 
 jobs:
