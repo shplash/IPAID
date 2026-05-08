@@ -1,0 +1,25 @@
+name: IPAID
+options:
+  bundleIdPrefix: com.lewis
+  deploymentTarget:
+    iOS: "16.0"
+packages:
+  ZIPFoundation:
+    url: https://github.com/weichsel/ZIPFoundation.git
+    from: 0.9.19
+targets:
+  IPAID:
+    type: application
+    platform: iOS
+    sources:
+      - App
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.lewis.IPAID
+        INFOPLIST_KEY_CFBundleDisplayName: IPAID
+        CURRENT_PROJECT_VERSION: 1
+        MARKETING_VERSION: 1.0
+        ASSETCATALOG_COMPILER_APPICON_NAME: ""
+        CODE_SIGNING_ALLOWED: NO
+    dependencies:
+      - package: ZIPFoundation
