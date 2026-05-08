@@ -160,13 +160,18 @@ struct ContentView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
 
+                    Text("IPAID v1.0")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .padding(.top, 20)
+
                     Spacer()
                 }
                 .padding()
             }
             .fileImporter(
                 isPresented: $showImporter,
-                allowedContentTypes: [.data],
+                allowedContentTypes: [.item],
                 allowsMultipleSelection: false
             ) { result in
                 handleImport(result)
@@ -179,6 +184,16 @@ struct ContentView: View {
         do {
 
             guard let selected = try result.get().first else {
+                return
+            }
+
+            guard selected.pathExtension.lowercased() == "ipa" else {
+
+                status = "Selected file is not an IPA."
+
+                UINotificationFeedbackGenerator()
+                    .notificationOccurred(.error)
+
                 return
             }
 
