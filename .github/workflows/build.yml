@@ -30,11 +30,7 @@ jobs:
       - name: Package IPA
         run: |
           mkdir Payload
-
-          cp -r \
-          build/Build/Products/Release-iphoneos/IPAID.app \
-          Payload/
-
+          cp -r build/Build/Products/Release-iphoneos/IPAID.app Payload/
           zip -vr IPAID.ipa Payload
 
       - name: Upload IPA
