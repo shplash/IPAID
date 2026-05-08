@@ -19,7 +19,7 @@ targets:
         INFOPLIST_KEY_CFBundleDisplayName: IPAID
         CURRENT_PROJECT_VERSION: 1
         MARKETING_VERSION: 1.0
-        ASSETCATALOG_COMPILER_APPICON_NAME: ""
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         CODE_SIGNING_ALLOWED: NO
     dependencies:
       - package: ZIPFoundation
