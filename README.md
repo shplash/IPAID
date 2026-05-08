@@ -8,10 +8,6 @@
   Lightweight iPhone IPA bundle identifier editor.
 </p>
 
-<p align="center">
-  SideStore • AltStore • LiveContainer
-</p>
-
 ---
 
 # Features
