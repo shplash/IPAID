@@ -69,3 +69,11 @@ to install/sign the exported IPA afterward.
 - Version/build display
 - Copy/paste helpers
 - Success haptics
+
+ 
+---
+
+
+# License
+
+Licensed under MPL-2.0.
