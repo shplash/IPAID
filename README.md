@@ -1,4 +1,4 @@
-# IPAID
+# IPAI
 
 A lightweight iPhone IPA bundle identifier editor.
 
