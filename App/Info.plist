@@ -2,8 +2,12 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+
 	<key>CFBundleDevelopmentRegion</key>
-	<string>en</string>
+	<string>$(DEVELOPMENT_LANGUAGE)</string>
+
+	<key>CFBundleDisplayName</key>
+	<string>IPAID</string>
 
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
@@ -21,7 +25,7 @@
 	<string>APPL</string>
 
 	<key>CFBundleShortVersionString</key>
-	<string>1.0</string>
+	<string>1.0.1</string>
 
 	<key>CFBundleVersion</key>
 	<string>1</string>
@@ -38,52 +42,49 @@
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 
-	<key>UISupportsDocumentBrowser</key>
-	<true/>
+	<key>UILaunchScreen</key>
+	<dict/>
 
-	<key>UTImportedTypeDeclarations</key>
+	<key>UIRequiredDeviceCapabilities</key>
 	<array>
-		<dict>
-			<key>UTTypeIdentifier</key>
-			<string>com.shplash.ipa</string>
-
-			<key>UTTypeDescription</key>
-			<string>iOS App Archive</string>
-
-			<key>UTTypeConformsTo</key>
-			<array>
-				<string>public.zip-archive</string>
-				<string>public.data</string>
-			</array>
-
-			<key>UTTypeTagSpecification</key>
-			<dict>
-				<key>public.filename-extension</key>
-				<array>
-					<string>ipa</string>
-				</array>
-
-				<key>public.mime-type</key>
-				<string>application/octet-stream</string>
-			</dict>
-		</dict>
+		<string>arm64</string>
 	</array>
 
-	<key>CFBundleDocumentTypes</key>
+	<key>UISupportedInterfaceOrientations</key>
 	<array>
-		<dict>
-			<key>CFBundleTypeName</key>
-			<string>IPA File</string>
-
-			<key>LSHandlerRank</key>
-			<string>Owner</string>
-
-			<key>LSItemContentTypes</key>
-			<array>
-				<string>com.shplash.ipa</string>
-				<string>public.zip-archive</string>
-			</array>
-		</dict>
+		<string>UIInterfaceOrientationPortrait</string>
 	</array>
+
+	<key>UISupportedInterfaceOrientations~ipad</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+	</array>
+
+	<key>CFBundleIcons</key>
+	<dict>
+		<key>CFBundlePrimaryIcon</key>
+		<dict>
+			<key>CFBundleIconFiles</key>
+			<array>
+				<string>AppIcon</string>
+			</array>
+			<key>UIPrerenderedIcon</key>
+			<false/>
+		</dict>
+	</dict>
+
+	<key>CFBundleIcons~ipad</key>
+	<dict>
+		<key>CFBundlePrimaryIcon</key>
+		<dict>
+			<key>CFBundleIconFiles</key>
+			<array>
+				<string>AppIcon</string>
+			</array>
+			<key>UIPrerenderedIcon</key>
+			<false/>
+		</dict>
+	</dict>
+
 </dict>
 </plist>
