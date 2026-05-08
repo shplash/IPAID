@@ -26,10 +26,6 @@ struct ContentView: View {
 
     @State private var iconImage: UIImage?
 
-    private var ipaType: UTType {
-        UTType(filenameExtension: "ipa") ?? .zip
-    }
-
     var body: some View {
 
         NavigationStack {
@@ -170,7 +166,7 @@ struct ContentView: View {
             }
             .fileImporter(
                 isPresented: $showImporter,
-                allowedContentTypes: [ipaType, .zip],
+                allowedContentTypes: [.data],
                 allowsMultipleSelection: false
             ) { result in
                 handleImport(result)
