@@ -5,11 +5,12 @@ import UIKit
 
 struct ContentView: View {
 
+    private let ipaType = UTType(importedAs: "com.shplash.ipa")
+
     @State private var showImporter = false
 
     @State private var ipaURL: URL?
     @State private var originalFileName = ""
-
     @State private var appInfoPlistPath: String?
 
     @State private var currentBundleID = ""
@@ -19,12 +20,8 @@ struct ContentView: View {
     @State private var appBuild = ""
 
     @State private var rewrittenExtensions = 0
-
     @State private var status = "Select an IPA to begin."
-
     @State private var exportURL: URL?
-
-    @State private var iconImage: UIImage?
 
     var body: some View {
         NavigationStack {
@@ -40,16 +37,8 @@ struct ContentView: View {
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
 
-                    if let iconImage {
-                        Image(uiImage: iconImage)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: 90, height: 90)
-                            .clipShape(RoundedRectangle(cornerRadius: 20))
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-
-                    Button("Select IPA") {
+                    Button("Select IPA")
+                    {
                         showImporter = true
                     }
                     .buttonStyle(.borderedProminent)
@@ -121,7 +110,6 @@ struct ContentView: View {
 
                     if let exportURL {
                         VStack(alignment: .leading, spacing: 8) {
-
                             Text("Output")
                                 .font(.headline)
 
@@ -149,7 +137,7 @@ struct ContentView: View {
             }
             .fileImporter(
                 isPresented: $showImporter,
-                allowedContentTypes: [.data],
+                allowedContentTypes: [ipaType, .zip, .archive],
                 allowsMultipleSelection: false
             ) { result in
                 handleImport(result)
@@ -164,7 +152,6 @@ struct ContentView: View {
             }
 
             let didAccess = selected.startAccessingSecurityScopedResource()
-
             defer {
                 if didAccess {
                     selected.stopAccessingSecurityScopedResource()
@@ -186,14 +173,13 @@ struct ContentView: View {
             exportURL = nil
             rewrittenExtensions = 0
 
-            let (path, id, version, build, icon) = try readBundleInfo(from: temp)
+            let (path, id, version, build) = try readBundleInfo(from: temp)
 
             appInfoPlistPath = path
             currentBundleID = id
             newBundleID = id
             appVersion = version
             appBuild = build
-            iconImage = icon
 
             status = "Loaded: \(selected.lastPathComponent)"
 
@@ -205,10 +191,7 @@ struct ContentView: View {
         }
     }
 
-    private func readBundleInfo(
-        from ipa: URL
-    ) throws -> (String, String, String, String, UIImage?) {
-
+    private func readBundleInfo(from ipa: URL) throws -> (String, String, String, String) {
         guard let archive = Archive(url: ipa, accessMode: .read) else {
             throw SimpleError("Selected file is not a valid IPA or ZIP archive.")
         }
@@ -240,13 +223,7 @@ struct ContentView: View {
         let version = dict["CFBundleShortVersionString"] as? String ?? "Unknown"
         let build = dict["CFBundleVersion"] as? String ?? "Unknown"
 
-        return (
-            entry.path,
-            id,
-            version,
-            build,
-            nil
-        )
+        return (entry.path, id, version, build)
     }
 
     private func exportUpdatedIPA() {
@@ -289,7 +266,6 @@ struct ContentView: View {
                 var data = try extractData(entry: entry, from: inputArchive)
 
                 let isMainInfoPlist = entry.path == targetPlist
-
                 let isExtensionInfoPlist =
                     entry.path.hasSuffix("Info.plist")
                     && entry.path.contains(".appex/")
@@ -348,11 +324,7 @@ struct ContentView: View {
         }
     }
 
-    private func makeReadableOutputURL(
-        input: URL,
-        bundleID: String
-    ) -> URL {
-
+    private func makeReadableOutputURL(input: URL, bundleID: String) -> URL {
         let baseName: String
 
         if !originalFileName.isEmpty {
@@ -375,11 +347,7 @@ struct ContentView: View {
             .appendingPathComponent(fileName)
     }
 
-    private func extractData(
-        entry: Entry,
-        from archive: Archive
-    ) throws -> Data {
-
+    private func extractData(entry: Entry, from archive: Archive) throws -> Data {
         var data = Data()
 
         _ = try archive.extract(entry) { chunk in
@@ -391,7 +359,6 @@ struct ContentView: View {
 }
 
 struct SimpleError: LocalizedError {
-
     let message: String
 
     init(_ message: String) {
