@@ -1,6 +1,6 @@
 name: IPAID
 options:
-  bundleIdPrefix: com.lewis
+  bundleIdPrefix: com.shplash
   deploymentTarget:
     iOS: "16.0"
 packages:
@@ -15,7 +15,7 @@ targets:
       - App
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.lewis.IPAID
+        PRODUCT_BUNDLE_IDENTIFIER: com.shplash.IPAID
         INFOPLIST_KEY_CFBundleDisplayName: IPAID
         CURRENT_PROJECT_VERSION: 1
         MARKETING_VERSION: 1.0
