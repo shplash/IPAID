@@ -50,6 +50,8 @@ struct ContentView: View {
                             HStack {
                                 Text(currentBundleID)
                                     .font(.system(.body, design: .monospaced))
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
                                     .textSelection(.enabled)
 
                                 Spacer()
@@ -113,6 +115,8 @@ struct ContentView: View {
                             Text(exportURL.lastPathComponent)
                                 .font(.system(.callout, design: .monospaced))
                                 .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
                                 .textSelection(.enabled)
 
                             ShareLink(item: exportURL) {
@@ -152,6 +156,7 @@ struct ContentView: View {
             }
 
             let didAccess = selected.startAccessingSecurityScopedResource()
+
             defer {
                 if didAccess {
                     selected.stopAccessingSecurityScopedResource()
@@ -178,7 +183,11 @@ struct ContentView: View {
             UINotificationFeedbackGenerator()
                 .notificationOccurred(.error)
 
-            status = "Import failed: \(error.localizedDescription)"
+            status = """
+            IPA recommended over ZIP for compatibility.
+
+            Import failed: \(error.localizedDescription)
+            """
         }
     }
 
@@ -237,11 +246,7 @@ struct ContentView: View {
                 throw SimpleError("Could not reopen IPA.")
             }
 
-            let output = makeReadableOutputURL(input: input, bundleID: cleanID)
-
-            if FileManager.default.fileExists(atPath: output.path) {
-                try FileManager.default.removeItem(at: output)
-            }
+            let output = makeReadableOutputURL(input: input)
 
             guard let outputArchive = Archive(url: output, accessMode: .create) else {
                 throw SimpleError("Could not create output IPA.")
@@ -301,7 +306,6 @@ struct ContentView: View {
             }
 
             exportURL = output
-            currentBundleID = cleanID
 
             UINotificationFeedbackGenerator()
                 .notificationOccurred(.success)
@@ -316,7 +320,7 @@ struct ContentView: View {
         }
     }
 
-    private func makeReadableOutputURL(input: URL, bundleID: String) -> URL {
+    private func makeReadableOutputURL(input: URL) -> URL {
         let baseName: String
 
         if !originalFileName.isEmpty {
@@ -329,14 +333,17 @@ struct ContentView: View {
                 .lastPathComponent
         }
 
-        let safeBundleID = bundleID
-            .replacingOccurrences(of: ".", with: "-")
-            .replacingOccurrences(of: " ", with: "")
+        let folder = FileManager.default.temporaryDirectory
 
-        let fileName = "\(baseName)-bundleid-\(safeBundleID).ipa"
+        var version = 1
+        var candidate = folder.appendingPathComponent("\(baseName)-bundlechangedv\(version).ipa")
 
-        return FileManager.default.temporaryDirectory
-            .appendingPathComponent(fileName)
+        while FileManager.default.fileExists(atPath: candidate.path) {
+            version += 1
+            candidate = folder.appendingPathComponent("\(baseName)-bundlechangedv\(version).ipa")
+        }
+
+        return candidate
     }
 
     private func extractData(entry: Entry, from archive: Archive) throws -> Data {
