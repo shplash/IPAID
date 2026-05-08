@@ -5,9 +5,7 @@ import UIKit
 
 struct ContentView: View {
 
-    private let ipaType = UTType(importedAs: "com.shplash.ipa")
-
-    @State private var showImporter = false
+    @State private var showPicker = false
 
     @State private var ipaURL: URL?
     @State private var originalFileName = ""
@@ -37,9 +35,8 @@ struct ContentView: View {
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
 
-                    Button("Select IPA")
-                    {
-                        showImporter = true
+                    Button("Select IPA") {
+                        showPicker = true
                     }
                     .buttonStyle(.borderedProminent)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -135,29 +132,16 @@ struct ContentView: View {
                 }
                 .padding()
             }
-            .fileImporter(
-                isPresented: $showImporter,
-                allowedContentTypes: [ipaType, .zip, .archive],
-                allowsMultipleSelection: false
-            ) { result in
-                handleImport(result)
+            .sheet(isPresented: $showPicker) {
+                DocumentPicker { url in
+                    handleSelectedFile(url)
+                }
             }
         }
     }
 
-    private func handleImport(_ result: Result<[URL], Error>) {
+    private func handleSelectedFile(_ selected: URL) {
         do {
-            guard let selected = try result.get().first else {
-                return
-            }
-
-            let didAccess = selected.startAccessingSecurityScopedResource()
-            defer {
-                if didAccess {
-                    selected.stopAccessingSecurityScopedResource()
-                }
-            }
-
             originalFileName = selected.lastPathComponent
 
             let temp = FileManager.default.temporaryDirectory
@@ -165,6 +149,13 @@ struct ContentView: View {
 
             if FileManager.default.fileExists(atPath: temp.path) {
                 try FileManager.default.removeItem(at: temp)
+            }
+
+            let didAccess = selected.startAccessingSecurityScopedResource()
+            defer {
+                if didAccess {
+                    selected.stopAccessingSecurityScopedResource()
+                }
             }
 
             try FileManager.default.copyItem(at: selected, to: temp)
@@ -193,7 +184,7 @@ struct ContentView: View {
 
     private func readBundleInfo(from ipa: URL) throws -> (String, String, String, String) {
         guard let archive = Archive(url: ipa, accessMode: .read) else {
-            throw SimpleError("Selected file is not a valid IPA or ZIP archive.")
+            throw SimpleError("Selected file is not a valid IPA/ZIP archive.")
         }
 
         guard let entry = archive.first(where: { entry in
@@ -266,6 +257,7 @@ struct ContentView: View {
                 var data = try extractData(entry: entry, from: inputArchive)
 
                 let isMainInfoPlist = entry.path == targetPlist
+
                 let isExtensionInfoPlist =
                     entry.path.hasSuffix("Info.plist")
                     && entry.path.contains(".appex/")
@@ -355,6 +347,51 @@ struct ContentView: View {
         }
 
         return data
+    }
+}
+
+struct DocumentPicker: UIViewControllerRepresentable {
+
+    let onPick: (URL) -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(onPick: onPick)
+    }
+
+    func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
+        let picker = UIDocumentPickerViewController(
+            forOpeningContentTypes: [.item],
+            asCopy: true
+        )
+
+        picker.allowsMultipleSelection = false
+        picker.delegate = context.coordinator
+        return picker
+    }
+
+    func updateUIViewController(
+        _ uiViewController: UIDocumentPickerViewController,
+        context: Context
+    ) {}
+
+    final class Coordinator: NSObject, UIDocumentPickerDelegate {
+
+        let onPick: (URL) -> Void
+
+        init(onPick: @escaping (URL) -> Void) {
+            self.onPick = onPick
+        }
+
+        func documentPicker(
+            _ controller: UIDocumentPickerViewController,
+            didPickDocumentsAt urls: [URL]
+        ) {
+            guard let url = urls.first else {
+                return
+            }
+
+            onPick(url)
+        }
     }
 }
 
