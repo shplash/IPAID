@@ -1,0 +1,25 @@
+name: Feature request
+description: Suggest an idea or improvement for IPAID
+title: "[Feature]: "
+labels: ["enhancement"]
+
+body:
+  - type: textarea
+    id: feature
+    attributes:
+      label: Feature description
+      placeholder: Describe the feature or improvement
+    validations:
+      required: true
+
+  - type: textarea
+    id: reason
+    attributes:
+      label: Why would this be useful?
+      placeholder: Explain the use case
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Extra details
+      placeholder: Screenshots, examples, or additional context
