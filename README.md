@@ -37,7 +37,7 @@
 
 Most iOS signing apps tie bundle identifier editing to signing workflows or certificate setup.
 
-IPAID directly edits the IPA itself before SideStore/AltStore signing.
+IPAID directly edits the IPA itself before signing it.
 
 ---
 
