@@ -1,0 +1,54 @@
+name: Bug report
+description: Report a problem with IPAID
+title: "[Bug]: "
+labels: ["bug"]
+
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      placeholder: Describe the issue
+    validations:
+      required: true
+
+  - type: input
+    id: device
+    attributes:
+      label: Device
+      placeholder: iPhone 15 Pro
+
+  - type: input
+    id: ios
+    attributes:
+      label: iOS version
+      placeholder: iOS 18.6.2
+
+  - type: dropdown
+    id: install
+    attributes:
+      label: Install method
+      options:
+        - SideStore
+        - AltStore
+        - TrollStore
+        - LiveContainer
+        - Other
+
+  - type: input
+    id: ipa
+    attributes:
+      label: IPA tested
+      placeholder: Spotify / YouTube / etc
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      placeholder: What should have happened?
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Screenshots or logs
+      placeholder: Paste screenshots or logs here
