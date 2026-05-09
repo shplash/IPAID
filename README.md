@@ -50,6 +50,7 @@ Use:
 - AltStore
 - Feather
 - LiveContainer
+- Trollstore
 - etc
 
 to install/sign the exported IPA afterward.
