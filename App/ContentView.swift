@@ -20,6 +20,7 @@ struct ContentView: View {
     @State private var selectedExtensionsToRemove: Set<String> = []
     @State private var extensionsExpanded = false
     @State private var expandedExtensionInfo: String?
+    @State private var infoTapLocked = false
     @State private var copiedFilename = false
     @State private var copiedBundleID = false
     @State private var exportSummary = ""
@@ -46,6 +47,10 @@ struct ContentView: View {
 
     private var cleanOriginalDisplayName: String {
         originalDisplayName.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var displayedOriginalFileName: String {
+        middleTruncated(originalFileName, limit: 34)
     }
 
     private var bundleIDChanged: Bool {
@@ -188,10 +193,9 @@ struct ContentView: View {
                                 .font(.caption.bold())
                                 .foregroundStyle(.secondary)
 
-                            Text(originalFileName)
+                            Text(displayedOriginalFileName)
                                 .font(.callout)
                                 .lineLimit(1)
-                                .truncationMode(.middle)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
@@ -210,11 +214,22 @@ struct ContentView: View {
                         .buttonStyle(.borderedProminent)
 
                         if !currentBundleID.isEmpty {
-                            Button("Unload") {
+                            Button {
                                 unloadIPA()
+                            } label: {
+                                Text("Unload")
+                                    .fontWeight(.semibold)
+                                    .foregroundStyle(.primary.opacity(0.78))
+                                    .padding(.vertical, 9)
+                                    .padding(.horizontal, 16)
+                                    .background(Color.gray.opacity(0.18))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 10)
+                                            .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                                    )
+                                    .clipShape(RoundedRectangle(cornerRadius: 10))
                             }
-                            .buttonStyle(.bordered)
-                            .tint(.secondary)
+                            .buttonStyle(.plain)
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -360,6 +375,7 @@ struct ContentView: View {
                                 Text(currentChangeMessage)
                                     .font(.callout)
                                     .foregroundStyle(validationColor)
+                                    .padding(.top, 4)
                             }
 
                             Button("Export Updated IPA") {
@@ -367,7 +383,7 @@ struct ContentView: View {
                             }
                             .buttonStyle(.borderedProminent)
                             .disabled(!canExport)
-                            .padding(.top, 8)
+                            .padding(.top, 4)
 
                             if !status.isEmpty && status.hasPrefix("Export") {
                                 Text(status)
@@ -542,11 +558,22 @@ struct ContentView: View {
 
                         Spacer(minLength: 8)
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
 
                 Button {
+                    guard !infoTapLocked else {
+                        return
+                    }
+
+                    infoTapLocked = true
+
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.28) {
+                        infoTapLocked = false
+                    }
+
                     withAnimation(.easeInOut(duration: 0.18)) {
                         expandedExtensionInfo = isExpanded ? nil : path
                     }
@@ -600,6 +627,7 @@ struct ContentView: View {
         selectedExtensionsToRemove = []
         extensionsExpanded = false
         expandedExtensionInfo = nil
+        infoTapLocked = false
         copiedFilename = false
         copiedBundleID = false
         exportSummary = ""
@@ -638,6 +666,7 @@ struct ContentView: View {
             selectedExtensionsToRemove = []
             extensionsExpanded = false
             expandedExtensionInfo = nil
+            infoTapLocked = false
             copiedFilename = false
             copiedBundleID = false
             exportSummary = ""
@@ -943,6 +972,18 @@ struct ContentView: View {
         exportSummary = ""
         copiedFilename = false
         status = "Changes updated. Export again to create a new IPA."
+    }
+
+    private func middleTruncated(_ text: String, limit: Int) -> String {
+        guard text.count > limit, limit > 8 else {
+            return text
+        }
+
+        let keep = max(4, (limit - 1) / 2)
+        let start = text.prefix(keep)
+        let end = text.suffix(keep)
+
+        return "\(start)…\(end)"
     }
 
     private func extensionName(from path: String) -> String {
