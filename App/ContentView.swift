@@ -21,6 +21,7 @@ struct ContentView: View {
     @State private var extensionsExpanded = false
     @State private var expandedExtensionInfo: String?
     @State private var infoTapLocked = false
+    @State private var infoAutoCloseToken = UUID()
     @State private var copiedFilename = false
     @State private var copiedBundleID = false
     @State private var exportSummary = ""
@@ -102,7 +103,7 @@ struct ContentView: View {
         }
 
         if !hasPendingChanges {
-            return .red
+            return .none
         }
 
         if !bundleIDChanged {
@@ -123,7 +124,7 @@ struct ContentView: View {
         case .orange:
             return .orange
         case .green:
-            return .green
+            return .blue
         case .none:
             return .secondary
         }
@@ -171,7 +172,7 @@ struct ContentView: View {
             ScrollView {
                 VStack(spacing: 18) {
 
-                    VStack(alignment: .leading, spacing: 5) {
+                    VStack(alignment: .leading, spacing: 6) {
                         HStack(alignment: .firstTextBaseline, spacing: 10) {
                             Text("IPAID")
                                 .font(.largeTitle.bold())
@@ -181,24 +182,15 @@ struct ContentView: View {
                                 .foregroundStyle(.secondary)
                         }
 
-                        Text("Bundle IDs • Names • Extensions")
-                            .font(.callout.weight(.semibold))
-                            .foregroundStyle(.secondary)
+                        if !originalFileName.isEmpty {
+                            Text("Loaded: \(displayedOriginalFileName)")
+                                .font(.callout.weight(.medium))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                        }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
-
-                    if !originalFileName.isEmpty {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Loaded IPA")
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(.secondary)
-
-                            Text(displayedOriginalFileName)
-                                .font(.callout)
-                                .lineLimit(1)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
 
                     if currentBundleID.isEmpty && !status.isEmpty {
                         Text(status)
@@ -207,7 +199,7 @@ struct ContentView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
 
-                    HStack(spacing: 10) {
+                    HStack(spacing: 8) {
                         Button("Select IPA") {
                             showPicker = true
                         }
@@ -219,7 +211,7 @@ struct ContentView: View {
                             } label: {
                                 Text("Unload")
                                     .fontWeight(.semibold)
-                                    .foregroundStyle(.primary.opacity(0.68))
+                                    .foregroundStyle(.primary.opacity(0.78))
                                     .padding(.vertical, 9)
                                     .padding(.horizontal, 16)
                                     .background(Color.gray.opacity(0.18))
@@ -235,7 +227,7 @@ struct ContentView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
 
                     if !currentBundleID.isEmpty {
-                        VStack(alignment: .leading, spacing: 10) {
+                        VStack(alignment: .leading, spacing: 6) {
 
                             Text("Current Bundle ID")
                                 .font(.headline.weight(.semibold))
@@ -271,7 +263,7 @@ struct ContentView: View {
                                 .font(.headline.weight(.semibold))
                                 .padding(.top, 8)
 
-                            HStack(spacing: 10) {
+                            HStack(spacing: 8) {
                                 TextField("com.example.app", text: $newBundleID)
                                     .textInputAutocapitalization(.never)
                                     .autocorrectionDisabled()
@@ -327,11 +319,15 @@ struct ContentView: View {
                                         .font(.callout.weight(.semibold))
                                     Spacer()
                                 }
-                                .padding(.vertical, 12)
+                                .padding(.vertical, 11)
                                 .padding(.horizontal, 14)
-                                .foregroundStyle(duplicateMode ? Color.white : Color.primary)
-                                .background(duplicateMode ? Color.blue : Color.gray.opacity(0.18))
-                                .clipShape(RoundedRectangle(cornerRadius: 14))
+                                .foregroundStyle(duplicateMode ? Color.blue : Color.primary)
+                                .background(Color.gray.opacity(0.12))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                                )
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
                             }
                             .buttonStyle(.plain)
 
@@ -341,9 +337,9 @@ struct ContentView: View {
 
                             Text("Display Name")
                                 .font(.headline.weight(.semibold))
-                                .padding(.top, 8)
+                                .padding(.top, 2)
 
-                            HStack(spacing: 10) {
+                            HStack(spacing: 8) {
                                 TextField("App name", text: $displayName)
                                     .font(.body.weight(.regular))
                                     .lineLimit(1)
@@ -374,9 +370,9 @@ struct ContentView: View {
 
                             if !currentChangeMessage.isEmpty {
                                 Text(currentChangeMessage)
-                                    .font(.callout.weight(.regular))
+                                    .font(.subheadline.weight(.regular))
                                     .foregroundStyle(validationColor)
-                                    .padding(.top, 4)
+                                    .padding(.top, 3)
                             }
 
                             Button("Export Updated IPA") {
@@ -456,11 +452,12 @@ struct ContentView: View {
     }
 
     private var extensionRemovalSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 8) {
             Button {
                 withAnimation(.easeInOut(duration: 0.2)) {
                     extensionsExpanded.toggle()
                     if !extensionsExpanded {
+                        infoAutoCloseToken = UUID()
                         expandedExtensionInfo = nil
                     }
                 }
@@ -468,30 +465,30 @@ struct ContentView: View {
                 HStack {
                     Image(systemName: selectedExtensionsToRemove.isEmpty ? "circle" : "checkmark.circle.fill")
 
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Remove Extensions")
-                            .font(.callout.weight(.semibold))
-
-                        Text("\(selectedExtensionsToRemove.count) of \(foundExtensions.count) selected")
-                            .font(.caption)
-                            .foregroundStyle(selectedExtensionsToRemove.isEmpty ? Color.secondary : Color.white.opacity(0.85))
-                    }
+                    Text("Extensions • \(selectedExtensionsToRemove.count)/\(foundExtensions.count)")
+                        .font(.callout.weight(.semibold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
 
                     Spacer()
 
                     Image(systemName: extensionsExpanded ? "chevron.up" : "chevron.down")
                         .font(.caption.bold())
                 }
-                .padding(.vertical, 12)
+                .padding(.vertical, 11)
                 .padding(.horizontal, 14)
-                .foregroundStyle(selectedExtensionsToRemove.isEmpty ? Color.primary : Color.white)
-                .background(selectedExtensionsToRemove.isEmpty ? Color.gray.opacity(0.18) : Color.blue)
-                .clipShape(RoundedRectangle(cornerRadius: 14))
+                .foregroundStyle(selectedExtensionsToRemove.isEmpty ? Color.primary : Color.blue)
+                .background(Color.gray.opacity(0.12))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 12))
             }
             .buttonStyle(.plain)
 
             if extensionsExpanded {
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 6) {
                     ForEach(foundExtensions, id: \.self) { path in
                         extensionRow(path)
                     }
@@ -508,24 +505,36 @@ struct ContentView: View {
                     } label: {
                         HStack {
                             Image(systemName: selectedExtensionsToRemove.count == foundExtensions.count ? "checkmark.circle.fill" : "circle")
-                                .font(.title3)
+                                .font(.body)
 
-                            Text(selectedExtensionsToRemove.count == foundExtensions.count ? "Deselect All Extensions" : "Select All Extensions")
-                                .font(.callout.weight(.semibold))
+                            Text(selectedExtensionsToRemove.count == foundExtensions.count ? "Deselect All" : "Select All")
+                                .font(.subheadline.weight(.semibold))
 
                             Spacer()
                         }
-                        .font(.callout)
-                        .padding(.vertical, 10)
-                        .padding(.horizontal, 12)
-                        .background(Color.gray.opacity(0.12))
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .padding(.vertical, 7)
+                        .padding(.horizontal, 10)
+                        .background(Color.gray.opacity(0.10))
+                        .clipShape(RoundedRectangle(cornerRadius: 9))
                     }
                     .buttonStyle(.plain)
+
+                    if let infoPath = expandedExtensionInfo {
+                        Text(extensionTip(for: extensionName(from: infoPath)))
+                            .font(.caption2.weight(.regular))
+                            .foregroundStyle(.secondary.opacity(0.86))
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.vertical, 6)
+                            .padding(.horizontal, 9)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color.gray.opacity(0.075))
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                            .transition(.opacity.combined(with: .move(edge: .top)))
+                    }
                 }
-                .padding(12)
-                .background(Color.gray.opacity(0.08))
-                .clipShape(RoundedRectangle(cornerRadius: 14))
+                .padding(7)
+                .background(Color.gray.opacity(0.06))
+                .clipShape(RoundedRectangle(cornerRadius: 11))
             }
         }
     }
@@ -535,7 +544,7 @@ struct ContentView: View {
         let isExpanded = expandedExtensionInfo == path
         let name = extensionName(from: path)
 
-        return VStack(alignment: .leading, spacing: 8) {
+        return VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 0) {
                 Button {
                     withAnimation(.easeInOut(duration: 0.18)) {
@@ -547,9 +556,9 @@ struct ContentView: View {
                         clearStaleExportState()
                     }
                 } label: {
-                    HStack(spacing: 10) {
+                    HStack(spacing: 8) {
                         Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                            .font(.title3)
+                            .font(.body)
                             .foregroundStyle(isSelected ? Color.blue : Color.secondary)
 
                         Text(name)
@@ -575,13 +584,21 @@ struct ContentView: View {
                         infoTapLocked = false
                     }
 
-                    withAnimation(.easeInOut(duration: 0.18)) {
-                        expandedExtensionInfo = isExpanded ? nil : path
-                    }
+                    if isExpanded {
+                        infoAutoCloseToken = UUID()
+                        withAnimation(.easeInOut(duration: 0.18)) {
+                            expandedExtensionInfo = nil
+                        }
+                    } else {
+                        let token = UUID()
+                        infoAutoCloseToken = token
 
-                    if !isExpanded {
+                        withAnimation(.easeInOut(duration: 0.18)) {
+                            expandedExtensionInfo = path
+                        }
+
                         DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
-                            if expandedExtensionInfo == path {
+                            if infoAutoCloseToken == token && expandedExtensionInfo == path {
                                 withAnimation(.easeInOut(duration: 0.18)) {
                                     expandedExtensionInfo = nil
                                 }
@@ -591,27 +608,19 @@ struct ContentView: View {
                 } label: {
                     Image(systemName: "info.circle.fill")
                         .foregroundStyle(Color.blue)
-                        .frame(width: 44, height: 38)
+                        .frame(width: 40, height: 30)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }
 
-            if isExpanded {
-                Text(extensionTip(for: name))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.leading, 32)
-                    .transition(.opacity.combined(with: .move(edge: .top)))
-            }
         }
-        .font(.callout)
-        .padding(.vertical, isExpanded ? 10 : 8)
-        .padding(.leading, 12)
-        .padding(.trailing, 6)
-        .background(Color.gray.opacity(0.12))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .font(.subheadline)
+        .padding(.vertical, 5)
+        .padding(.leading, 10)
+        .padding(.trailing, 5)
+        .background(isExpanded ? Color.gray.opacity(0.14) : Color.gray.opacity(0.10))
+        .clipShape(RoundedRectangle(cornerRadius: 9))
     }
 
 
