@@ -14,9 +14,11 @@ struct ContentView: View {
     @State private var currentBundleID = ""
     @State private var newBundleID = ""
     @State private var displayName = ""
+    @State private var originalDisplayName = ""
     @State private var duplicateMode = false
-    @State private var removeExtensions = false
     @State private var foundExtensions: [String] = []
+    @State private var selectedExtensionsToRemove: Set<String> = []
+    @State private var extensionsExpanded = false
     @State private var validationMessage = ""
 
     @State private var appVersion = ""
@@ -25,6 +27,26 @@ struct ContentView: View {
     @State private var rewrittenExtensions = 0
     @State private var status = "Select an IPA to begin."
     @State private var exportURL: URL?
+
+    private var canExport: Bool {
+        let cleanID = newBundleID.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanName = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanOriginalName = originalDisplayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let validation = validateBundleID(cleanID)
+        let sameBundleID = cleanID == currentBundleID.trimmingCharacters(in: .whitespacesAndNewlines)
+        let nameChanged = cleanName != cleanOriginalName
+        let extensionChanges = !selectedExtensionsToRemove.isEmpty
+
+        if validation == "Bundle ID looks valid." {
+            return !sameBundleID || nameChanged || extensionChanges
+        }
+
+        if validation == "Bundle ID is the same as the original." {
+            return nameChanged || extensionChanges
+        }
+
+        return false
+    }
 
     var body: some View {
         NavigationStack {
@@ -84,42 +106,80 @@ struct ContentView: View {
                                     .textInputAutocapitalization(.never)
                                     .autocorrectionDisabled()
                                     .onChange(of: newBundleID) { value in
+                                        if duplicateMode && value != currentBundleID + ".ipaid" {
+                                            duplicateMode = false
+                                        }
+
                                         validationMessage = validateBundleID(value)
                                     }
 
                                 Button {
+                                    newBundleID = ""
+                                    validationMessage = validateBundleID(newBundleID)
+                                } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                }
+
+                                Button {
                                     if let paste = UIPasteboard.general.string {
                                         newBundleID = paste
+                                        validationMessage = validateBundleID(paste)
                                     }
                                 } label: {
                                     Image(systemName: "doc.on.clipboard")
                                 }
                             }
 
-                            Toggle("Duplicate install mode", isOn: $duplicateMode)
-                                .onChange(of: duplicateMode) { enabled in
-                                    if enabled {
-                                        newBundleID = currentBundleID + ".ipaid"
-                                    } else {
-                                        newBundleID = currentBundleID
-                                    }
+                            Button {
+                                duplicateMode.toggle()
 
-                                    validationMessage = validateBundleID(newBundleID)
+                                if duplicateMode {
+                                    newBundleID = currentBundleID + ".ipaid"
+                                } else {
+                                    newBundleID = currentBundleID
                                 }
+
+                                validationMessage = validateBundleID(newBundleID)
+                            } label: {
+                                HStack {
+                                    Image(systemName: duplicateMode ? "checkmark.circle.fill" : "circle")
+                                    Text("Clone App")
+                                        .fontWeight(.semibold)
+                                    Spacer()
+                                }
+                                .padding(.vertical, 12)
+                                .padding(.horizontal, 14)
+                                .foregroundStyle(duplicateMode ? Color.white : Color.primary)
+                                .background(duplicateMode ? Color.blue : Color.gray.opacity(0.18))
+                                .clipShape(RoundedRectangle(cornerRadius: 14))
+                            }
+                            .buttonStyle(.plain)
 
                             Text("Display Name")
                                 .font(.headline)
                                 .padding(.top, 8)
 
-                            TextField("App name", text: $displayName)
-                                .textFieldStyle(.roundedBorder)
+                            HStack {
+                                TextField("App name", text: $displayName)
+                                    .textFieldStyle(.roundedBorder)
+
+                                Button {
+                                    displayName = ""
+                                } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                }
+
+                                Button {
+                                    if let paste = UIPasteboard.general.string {
+                                        displayName = paste
+                                    }
+                                } label: {
+                                    Image(systemName: "doc.on.clipboard")
+                                }
+                            }
 
                             if !foundExtensions.isEmpty {
-                                Toggle("Remove app extensions before export", isOn: $removeExtensions)
-
-                                Text("\(foundExtensions.count) extension(s) found")
-                                    .font(.callout)
-                                    .foregroundStyle(.secondary)
+                                extensionRemovalSection
                             }
 
                             if !validationMessage.isEmpty {
@@ -136,12 +196,7 @@ struct ContentView: View {
                                 exportUpdatedIPA()
                             }
                             .buttonStyle(.borderedProminent)
-                            .disabled(
-                                validateBundleID(newBundleID) != "Bundle ID looks valid."
-                                || (newBundleID == currentBundleID
-                                    && displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                                    && !removeExtensions)
-                            )
+                            .disabled(!canExport)
                             .padding(.top, 8)
 
                             if rewrittenExtensions > 0 {
@@ -190,6 +245,85 @@ struct ContentView: View {
         }
     }
 
+    private var extensionRemovalSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    extensionsExpanded.toggle()
+                }
+            } label: {
+                HStack {
+                    Image(systemName: selectedExtensionsToRemove.isEmpty ? "circle" : "checkmark.circle.fill")
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Remove Extensions")
+                            .fontWeight(.semibold)
+
+                        Text("\(selectedExtensionsToRemove.count) of \(foundExtensions.count) selected")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer()
+
+                    Image(systemName: extensionsExpanded ? "chevron.up" : "chevron.down")
+                        .font(.caption.bold())
+                }
+                .padding(.vertical, 12)
+                .padding(.horizontal, 14)
+                .foregroundStyle(selectedExtensionsToRemove.isEmpty ? Color.primary : Color.white)
+                .background(selectedExtensionsToRemove.isEmpty ? Color.gray.opacity(0.18) : Color.blue)
+                .clipShape(RoundedRectangle(cornerRadius: 14))
+            }
+            .buttonStyle(.plain)
+
+            if extensionsExpanded {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Button("Remove All") {
+                            selectedExtensionsToRemove = Set(foundExtensions)
+                        }
+                        .font(.caption.bold())
+
+                        Button("Keep All") {
+                            selectedExtensionsToRemove = []
+                        }
+                        .font(.caption.bold())
+                    }
+
+                    ForEach(foundExtensions, id: \.self) { path in
+                        Button {
+                            if selectedExtensionsToRemove.contains(path) {
+                                selectedExtensionsToRemove.remove(path)
+                            } else {
+                                selectedExtensionsToRemove.insert(path)
+                            }
+                        } label: {
+                            HStack {
+                                Image(systemName: selectedExtensionsToRemove.contains(path) ? "checkmark.circle.fill" : "circle")
+
+                                Text(extensionName(from: path))
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+
+                                Spacer()
+                            }
+                            .font(.callout)
+                            .padding(.vertical, 9)
+                            .padding(.horizontal, 12)
+                            .background(Color.gray.opacity(0.12))
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(12)
+                .background(Color.gray.opacity(0.08))
+                .clipShape(RoundedRectangle(cornerRadius: 14))
+            }
+        }
+    }
+
     private func handleSelectedFile(_ selected: URL) {
         do {
             originalFileName = selected.lastPathComponent
@@ -214,7 +348,8 @@ struct ContentView: View {
             ipaURL = temp
             exportURL = nil
             rewrittenExtensions = 0
-            removeExtensions = false
+            selectedExtensionsToRemove = []
+            extensionsExpanded = false
             duplicateMode = false
 
             let (path, id, version, build, name, extensions) = try readBundleInfo(from: temp)
@@ -223,6 +358,7 @@ struct ContentView: View {
             currentBundleID = id
             newBundleID = id
             displayName = name
+            originalDisplayName = name
             foundExtensions = extensions
             validationMessage = validateBundleID(id)
             appVersion = version
@@ -298,8 +434,14 @@ struct ContentView: View {
             let cleanID = newBundleID.trimmingCharacters(in: .whitespacesAndNewlines)
             let validation = validateBundleID(cleanID)
 
-            guard validation == "Bundle ID looks valid." else {
+            guard validation == "Bundle ID looks valid."
+                || validation == "Bundle ID is the same as the original."
+            else {
                 throw SimpleError(validation)
+            }
+
+            guard canExport else {
+                throw SimpleError("Nothing changed.")
             }
 
             guard let inputArchive = Archive(url: input, accessMode: .read) else {
@@ -313,13 +455,14 @@ struct ContentView: View {
             }
 
             rewrittenExtensions = 0
+            let selectedExtensionRoots = selectedExtensionsToRemove.map { extensionRoot(from: $0) }
 
             for entry in inputArchive {
                 if entry.type == .directory {
                     continue
                 }
 
-                if removeExtensions && entry.path.contains(".appex/") {
+                if selectedExtensionRoots.contains(where: { entry.path.hasPrefix($0) }) {
                     continue
                 }
 
@@ -410,11 +553,11 @@ struct ContentView: View {
         let folder = FileManager.default.temporaryDirectory
 
         var version = 1
-        var candidate = folder.appendingPathComponent("\(baseName)-bundlechangedv\(version).ipa")
+        var candidate = folder.appendingPathComponent("\(baseName)-bid\(version).ipa")
 
         while FileManager.default.fileExists(atPath: candidate.path) {
             version += 1
-            candidate = folder.appendingPathComponent("\(baseName)-bundlechangedv\(version).ipa")
+            candidate = folder.appendingPathComponent("\(baseName)-bid\(version).ipa")
         }
 
         return candidate
@@ -422,9 +565,14 @@ struct ContentView: View {
 
     private func validateBundleID(_ id: String) -> String {
         let clean = id.trimmingCharacters(in: .whitespacesAndNewlines)
+        let original = currentBundleID.trimmingCharacters(in: .whitespacesAndNewlines)
 
         if clean.isEmpty {
             return "Bundle ID cannot be empty."
+        }
+
+        if !original.isEmpty && clean == original {
+            return "Bundle ID is the same as the original."
         }
 
         if !clean.contains(".") {
@@ -448,6 +596,24 @@ struct ContentView: View {
         }
 
         return "Bundle ID looks valid."
+    }
+
+    private func extensionName(from path: String) -> String {
+        let parts = path.split(separator: "/").map(String.init)
+
+        if let appExtension = parts.first(where: { $0.hasSuffix(".appex") }) {
+            return appExtension.replacingOccurrences(of: ".appex", with: "")
+        }
+
+        return URL(fileURLWithPath: path).deletingPathExtension().lastPathComponent
+    }
+
+    private func extensionRoot(from infoPlistPath: String) -> String {
+        guard let range = infoPlistPath.range(of: ".appex/") else {
+            return infoPlistPath
+        }
+
+        return String(infoPlistPath[..<range.upperBound])
     }
 
     private func extractData(entry: Entry, from archive: Archive) throws -> Data {
