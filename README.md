@@ -29,9 +29,6 @@
   <img src="assets/example1.PNG" width="360" alt="IPAID editing example">
 </p>
 
-<p align="center">
-  <em>Edit bundle IDs, rename apps, clone installs, and manage extensions.</em>
-</p>
 
 ---
 
