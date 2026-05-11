@@ -178,7 +178,7 @@ struct ContentView: View {
                             Text("IPAID")
                                 .font(.largeTitle.bold())
 
-                            Text("v1.1")
+                            Text("v1.1.1")
                                 .font(.headline.weight(.semibold))
                                 .foregroundStyle(.secondary)
                         }
