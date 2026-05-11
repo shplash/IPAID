@@ -21,6 +21,8 @@ struct ContentView: View {
     @State private var extensionsExpanded = false
     @State private var expandedExtensionInfo: String?
     @State private var copiedFilename = false
+    @State private var copiedBundleID = false
+    @State private var exportSummary = ""
     @State private var validationMessage = ""
 
     @State private var appVersion = ""
@@ -30,24 +32,96 @@ struct ContentView: View {
     @State private var status = "Select an IPA to begin."
     @State private var exportURL: URL?
 
+    private var cleanNewBundleID: String {
+        newBundleID.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var cleanCurrentBundleID: String {
+        currentBundleID.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var cleanDisplayName: String {
+        displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var cleanOriginalDisplayName: String {
+        originalDisplayName.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var bundleIDChanged: Bool {
+        !cleanCurrentBundleID.isEmpty && cleanNewBundleID != cleanCurrentBundleID
+    }
+
+    private var displayNameChanged: Bool {
+        cleanDisplayName != cleanOriginalDisplayName
+    }
+
+    private var extensionRemovalChanged: Bool {
+        !selectedExtensionsToRemove.isEmpty
+    }
+
+    private var hasPendingChanges: Bool {
+        bundleIDChanged || displayNameChanged || extensionRemovalChanged
+    }
+
     private var canExport: Bool {
-        let cleanID = newBundleID.trimmingCharacters(in: .whitespacesAndNewlines)
-        let cleanName = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
-        let cleanOriginalName = originalDisplayName.trimmingCharacters(in: .whitespacesAndNewlines)
-        let validation = validateBundleID(cleanID)
-        let sameBundleID = cleanID == currentBundleID.trimmingCharacters(in: .whitespacesAndNewlines)
-        let nameChanged = cleanName != cleanOriginalName
-        let extensionChanges = !selectedExtensionsToRemove.isEmpty
+        currentValidationTone != .red && hasPendingChanges
+    }
 
-        if validation == "Bundle ID looks valid." {
-            return !sameBundleID || nameChanged || extensionChanges
+    private enum ValidationTone: Equatable {
+        case red
+        case orange
+        case green
+        case none
+    }
+
+    private var currentValidationTone: ValidationTone {
+        guard !currentBundleID.isEmpty else {
+            return .none
         }
 
-        if validation == "Bundle ID is the same as the original." {
-            return nameChanged || extensionChanges
+        if !validateBundleID(cleanNewBundleID).isEmpty {
+            return .red
         }
 
-        return false
+        if cleanNewBundleID.count > 120 {
+            return .red
+        }
+
+        if cleanDisplayName.isEmpty {
+            return .red
+        }
+
+        if cleanDisplayName.count > 30 {
+            return .red
+        }
+
+        if !hasPendingChanges {
+            return .red
+        }
+
+        if !bundleIDChanged {
+            return .orange
+        }
+
+        if extensionRemovalChanged {
+            return .orange
+        }
+
+        return .green
+    }
+
+    private var validationColor: Color {
+        switch currentValidationTone {
+        case .red:
+            return .red
+        case .orange:
+            return .orange
+        case .green:
+            return .green
+        case .none:
+            return .secondary
+        }
     }
 
     private var currentChangeMessage: String {
@@ -55,28 +129,36 @@ struct ContentView: View {
             return ""
         }
 
-        let cleanID = newBundleID.trimmingCharacters(in: .whitespacesAndNewlines)
-        let cleanName = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
-        let cleanOriginalName = originalDisplayName.trimmingCharacters(in: .whitespacesAndNewlines)
-        let validation = validateBundleID(cleanID)
-        let sameBundleID = cleanID == currentBundleID.trimmingCharacters(in: .whitespacesAndNewlines)
-        let nameChanged = cleanName != cleanOriginalName
-        let extensionChanges = !selectedExtensionsToRemove.isEmpty
-
-        if validation != "Bundle ID looks valid."
-            && validation != "Bundle ID is the same as the original." {
-            return validation
+        let bundleError = validateBundleID(cleanNewBundleID)
+        if !bundleError.isEmpty {
+            return bundleError
         }
 
-        if sameBundleID && !nameChanged && !extensionChanges {
+        if cleanNewBundleID.count > 120 {
+            return "Bundle ID is too long."
+        }
+
+        if cleanDisplayName.isEmpty {
+            return "Display name cannot be empty."
+        }
+
+        if cleanDisplayName.count > 30 {
+            return "Display name is too long."
+        }
+
+        if !hasPendingChanges {
             return "No changes detected."
         }
 
-        if sameBundleID {
+        if !bundleIDChanged {
             return "Bundle ID unchanged — app may replace the original install."
         }
 
-        return "Bundle ID looks valid."
+        if extensionRemovalChanged {
+            return "Removing extensions may disable some app functionality."
+        }
+
+        return "Ready to export."
     }
 
     var body: some View {
@@ -84,12 +166,18 @@ struct ContentView: View {
             ScrollView {
                 VStack(spacing: 18) {
 
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("IPAID")
-                            .font(.title.bold())
+                    VStack(alignment: .leading, spacing: 5) {
+                        HStack(alignment: .firstTextBaseline, spacing: 10) {
+                            Text("IPAID")
+                                .font(.largeTitle.bold())
 
-                        Text("Modify bundle identifiers, app names, and extensions.")
-                            .font(.callout)
+                            Text("v1.1")
+                                .font(.headline.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Text("Bundle IDs • Names • Extensions")
+                            .font(.callout.weight(.semibold))
                             .foregroundStyle(.secondary)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -108,17 +196,27 @@ struct ContentView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
 
-                    if !status.isEmpty {
+                    if currentBundleID.isEmpty && !status.isEmpty {
                         Text(status)
                             .font(.callout)
                             .foregroundStyle(.secondary)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
 
-                    Button("Select IPA") {
-                        showPicker = true
+                    HStack(spacing: 10) {
+                        Button("Select IPA") {
+                            showPicker = true
+                        }
+                        .buttonStyle(.borderedProminent)
+
+                        if !currentBundleID.isEmpty {
+                            Button("Unload") {
+                                unloadIPA()
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(.secondary)
+                        }
                     }
-                    .buttonStyle(.borderedProminent)
                     .frame(maxWidth: .infinity, alignment: .leading)
 
                     if !currentBundleID.isEmpty {
@@ -138,13 +236,18 @@ struct ContentView: View {
 
                                 Button {
                                     UIPasteboard.general.string = currentBundleID
+                                    copiedBundleID = true
+
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                                        copiedBundleID = false
+                                    }
                                 } label: {
-                                    Image(systemName: "doc.on.doc")
+                                    Image(systemName: copiedBundleID ? "checkmark" : "doc.on.doc")
                                 }
                             }
 
                             if !appVersion.isEmpty {
-                                Text("Version \(appVersion) (\(appBuild))")
+                                Text("v\(appVersion) • build \(appBuild)")
                                     .font(.callout)
                                     .foregroundStyle(.secondary)
                             }
@@ -256,11 +359,7 @@ struct ContentView: View {
                             if !currentChangeMessage.isEmpty {
                                 Text(currentChangeMessage)
                                     .font(.callout)
-                                    .foregroundStyle(
-                                        currentChangeMessage == "Bundle ID looks valid."
-                                        ? .green
-                                        : .orange
-                                    )
+                                    .foregroundStyle(validationColor)
                             }
 
                             Button("Export Updated IPA") {
@@ -270,10 +369,17 @@ struct ContentView: View {
                             .disabled(!canExport)
                             .padding(.top, 8)
 
-                            if rewrittenExtensions > 0 {
-                                Text("\(rewrittenExtensions) extension bundle IDs rewritten")
+                            if !status.isEmpty && status.hasPrefix("Export") {
+                                Text(status)
                                     .font(.callout)
                                     .foregroundStyle(.secondary)
+                            }
+
+                            if !exportSummary.isEmpty {
+                                Text(exportSummary)
+                                    .font(.callout)
+                                    .foregroundStyle(.secondary)
+                                    .fixedSize(horizontal: false, vertical: true)
                             }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -313,17 +419,12 @@ struct ContentView: View {
                             }
 
                             ShareLink(item: exportURL) {
-                                Label("Save / Share Updated IPA", systemImage: "square.and.arrow.up")
+                                Label("Save / Share IPA", systemImage: "square.and.arrow.up")
                             }
                             .buttonStyle(.bordered)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
-
-                    Text("IPAID v1.1")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .padding(.top, 20)
 
                     Spacer()
                 }
@@ -418,11 +519,7 @@ struct ContentView: View {
         let name = extensionName(from: path)
 
         return VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 10) {
-                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                    .font(.title3)
-                    .foregroundStyle(isSelected ? Color.blue : Color.secondary)
-
+            HStack(spacing: 0) {
                 Button {
                     withAnimation(.easeInOut(duration: 0.18)) {
                         if isSelected {
@@ -433,11 +530,19 @@ struct ContentView: View {
                         clearStaleExportState()
                     }
                 } label: {
-                    Text(name)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                        .foregroundStyle(Color.primary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    HStack(spacing: 10) {
+                        Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                            .font(.title3)
+                            .foregroundStyle(isSelected ? Color.blue : Color.secondary)
+
+                        Text(name)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                            .foregroundStyle(Color.primary)
+
+                        Spacer(minLength: 8)
+                    }
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
 
@@ -458,6 +563,8 @@ struct ContentView: View {
                 } label: {
                     Image(systemName: "info.circle.fill")
                         .foregroundStyle(Color.blue)
+                        .frame(width: 44, height: 38)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }
@@ -472,10 +579,36 @@ struct ContentView: View {
             }
         }
         .font(.callout)
-        .padding(.vertical, isExpanded ? 11 : 9)
-        .padding(.horizontal, 12)
+        .padding(.vertical, isExpanded ? 10 : 8)
+        .padding(.leading, 12)
+        .padding(.trailing, 6)
         .background(Color.gray.opacity(0.12))
         .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+
+    private func unloadIPA() {
+        ipaURL = nil
+        originalFileName = ""
+        appInfoPlistPath = nil
+        currentBundleID = ""
+        newBundleID = ""
+        displayName = ""
+        originalDisplayName = ""
+        duplicateMode = false
+        foundExtensions = []
+        selectedExtensionsToRemove = []
+        extensionsExpanded = false
+        expandedExtensionInfo = nil
+        copiedFilename = false
+        copiedBundleID = false
+        exportSummary = ""
+        validationMessage = ""
+        appVersion = ""
+        appBuild = ""
+        rewrittenExtensions = 0
+        exportURL = nil
+        status = "Select an IPA to begin."
     }
 
     private func handleSelectedFile(_ selected: URL) {
@@ -506,6 +639,8 @@ struct ContentView: View {
             extensionsExpanded = false
             expandedExtensionInfo = nil
             copiedFilename = false
+            copiedBundleID = false
+            exportSummary = ""
             duplicateMode = false
 
             let (path, id, version, build, name, extensions) = try readBundleInfo(from: temp)
@@ -590,14 +725,12 @@ struct ContentView: View {
             let cleanID = newBundleID.trimmingCharacters(in: .whitespacesAndNewlines)
             let validation = validateBundleID(cleanID)
 
-            guard validation == "Bundle ID looks valid."
-                || validation == "Bundle ID is the same as the original."
-            else {
+            guard validation.isEmpty else {
                 throw SimpleError(validation)
             }
 
             guard canExport else {
-                throw SimpleError("Nothing changed.")
+                throw SimpleError(currentChangeMessage.isEmpty ? "Nothing changed." : currentChangeMessage)
             }
 
             guard let inputArchive = Archive(url: input, accessMode: .read) else {
@@ -611,6 +744,9 @@ struct ContentView: View {
             }
 
             rewrittenExtensions = 0
+            let removedExtensionCount = selectedExtensionsToRemove.count
+            let shouldRewriteBundleIDs = bundleIDChanged
+            let didChangeName = displayNameChanged
             let selectedExtensionRoots = selectedExtensionsToRemove.map { extensionRoot(from: $0) }
 
             for entry in inputArchive {
@@ -644,7 +780,7 @@ struct ContentView: View {
                     if let oldID = dict["CFBundleIdentifier"] as? String {
                         if isMainInfoPlist {
                             dict["CFBundleIdentifier"] = cleanID
-                        } else {
+                        } else if shouldRewriteBundleIDs {
                             let lastComponent = oldID.split(separator: ".").last ?? ""
                             dict["CFBundleIdentifier"] = cleanID + "." + lastComponent
                             rewrittenExtensions += 1
@@ -679,6 +815,14 @@ struct ContentView: View {
             }
 
             exportURL = output
+            exportSummary = makeExportSummary(
+                bundleIDChanged: shouldRewriteBundleIDs,
+                displayNameChanged: didChangeName,
+                removedExtensions: removedExtensionCount,
+                rewrittenExtensions: rewrittenExtensions
+            )
+            extensionsExpanded = false
+            expandedExtensionInfo = nil
 
             UINotificationFeedbackGenerator()
                 .notificationOccurred(.success)
@@ -689,6 +833,7 @@ struct ContentView: View {
             UINotificationFeedbackGenerator()
                 .notificationOccurred(.error)
 
+            exportSummary = ""
             status = "Export failed: \(error.localizedDescription)"
         }
     }
@@ -721,14 +866,13 @@ struct ContentView: View {
 
     private func validateBundleID(_ id: String) -> String {
         let clean = id.trimmingCharacters(in: .whitespacesAndNewlines)
-        let original = currentBundleID.trimmingCharacters(in: .whitespacesAndNewlines)
 
         if clean.isEmpty {
             return "Bundle ID cannot be empty."
         }
 
-        if !original.isEmpty && clean == original {
-            return "Bundle ID is the same as the original."
+        if clean.count > 120 {
+            return "Bundle ID is too long."
         }
 
         if !clean.contains(".") {
@@ -751,7 +895,42 @@ struct ContentView: View {
             return "Bundle ID cannot start or end with a dot."
         }
 
-        return "Bundle ID looks valid."
+        return ""
+    }
+
+    private func makeExportSummary(
+        bundleIDChanged: Bool,
+        displayNameChanged: Bool,
+        removedExtensions: Int,
+        rewrittenExtensions: Int
+    ) -> String {
+        var changes: [String] = []
+
+        if bundleIDChanged {
+            changes.append("Bundle ID changed")
+        }
+
+        if displayNameChanged {
+            changes.append("Display name changed")
+        }
+
+        if removedExtensions == 1 {
+            changes.append("1 extension removed")
+        } else if removedExtensions > 1 {
+            changes.append("\(removedExtensions) extensions removed")
+        }
+
+        if rewrittenExtensions == 1 {
+            changes.append("1 extension ID rewritten")
+        } else if rewrittenExtensions > 1 {
+            changes.append("\(rewrittenExtensions) extension IDs rewritten")
+        }
+
+        guard !changes.isEmpty else {
+            return ""
+        }
+
+        return "Applied: " + changes.joined(separator: " • ")
     }
 
     private func clearStaleExportState() {
@@ -761,6 +940,7 @@ struct ContentView: View {
 
         exportURL = nil
         rewrittenExtensions = 0
+        exportSummary = ""
         copiedFilename = false
         status = "Changes updated. Export again to create a new IPA."
     }
