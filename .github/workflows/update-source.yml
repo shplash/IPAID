@@ -1,0 +1,31 @@
+name: Update AltSource
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  update-source:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source repo
+        uses: actions/checkout@v4
+        with:
+          repository: shplash/shplash-repo
+          token: ${{ secrets.SOURCE_REPO_TOKEN }}
+
+      - name: Update apps.json
+        run: |
+          python3 update_source.py \
+            "${{ github.event.release.tag_name }}" \
+            "${{ github.event.release.name }}" \
+            "${{ github.event.release.body }}"
+
+      - name: Commit changes
+        run: |
+          git config user.name "shplash-bot"
+          git config user.email "actions@github.com"
+          git add apps.json
+          git commit -m "Update IPAID to ${{ github.event.release.tag_name }}" || exit 0
+          git push
