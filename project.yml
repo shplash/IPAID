@@ -33,9 +33,12 @@ targets:
     info:
       path: App/Info.plist
       properties:
+        CFBundleShortVersionString: "1.1.1"
+        CFBundleVersion: "111"
         UILaunchScreen: {}
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
 
     scheme:
-     
+      gatherCoverageData: false
+      testTargets: []
