@@ -171,7 +171,7 @@ struct ContentView: View {
             ScrollView {
                 VStack(spacing: 18) {
 
-                    VStack(alignment: .leading, spacing: 5) {
+                    VStack(alignment: .leading, spacing: 6) {
                         HStack(alignment: .firstTextBaseline, spacing: 10) {
                             Text("IPAID")
                                 .font(.largeTitle.bold())
@@ -181,24 +181,15 @@ struct ContentView: View {
                                 .foregroundStyle(.secondary)
                         }
 
-                        Text("Bundle IDs • Names • Extensions")
-                            .font(.callout.weight(.semibold))
-                            .foregroundStyle(.secondary)
+                        if !originalFileName.isEmpty {
+                            Text("Loaded: \(displayedOriginalFileName)")
+                                .font(.callout.weight(.medium))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                        }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
-
-                    if !originalFileName.isEmpty {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Loaded IPA")
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(.secondary)
-
-                            Text(displayedOriginalFileName)
-                                .font(.callout)
-                                .lineLimit(1)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
 
                     if currentBundleID.isEmpty && !status.isEmpty {
                         Text(status)
@@ -235,7 +226,7 @@ struct ContentView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
 
                     if !currentBundleID.isEmpty {
-                        VStack(alignment: .leading, spacing: 10) {
+                        VStack(alignment: .leading, spacing: 8) {
 
                             Text("Current Bundle ID")
                                 .font(.headline.weight(.semibold))
@@ -327,11 +318,15 @@ struct ContentView: View {
                                         .font(.callout.weight(.semibold))
                                     Spacer()
                                 }
-                                .padding(.vertical, 12)
+                                .padding(.vertical, 11)
                                 .padding(.horizontal, 14)
-                                .foregroundStyle(duplicateMode ? Color.white : Color.primary)
-                                .background(duplicateMode ? Color.blue : Color.gray.opacity(0.18))
-                                .clipShape(RoundedRectangle(cornerRadius: 14))
+                                .foregroundStyle(duplicateMode ? Color.blue : Color.primary)
+                                .background(Color.gray.opacity(0.12))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .stroke(duplicateMode ? Color.blue.opacity(0.7) : Color.white.opacity(0.06), lineWidth: 1)
+                                )
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
                             }
                             .buttonStyle(.plain)
 
