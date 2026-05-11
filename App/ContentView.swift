@@ -102,7 +102,7 @@ struct ContentView: View {
         }
 
         if !hasPendingChanges {
-            return .red
+            return .none
         }
 
         if !bundleIDChanged {
@@ -369,9 +369,9 @@ struct ContentView: View {
 
                             if !currentChangeMessage.isEmpty {
                                 Text(currentChangeMessage)
-                                    .font(.callout.weight(.regular))
+                                    .font(.subheadline.weight(.regular))
                                     .foregroundStyle(validationColor)
-                                    .padding(.top, 4)
+                                    .padding(.top, 3)
                             }
 
                             Button("Export Updated IPA") {
@@ -477,7 +477,7 @@ struct ContentView: View {
                     Image(systemName: extensionsExpanded ? "chevron.up" : "chevron.down")
                         .font(.caption.bold())
                 }
-                .padding(.vertical, 11)
+                .padding(.vertical, 10)
                 .padding(.horizontal, 14)
                 .foregroundStyle(selectedExtensionsToRemove.isEmpty ? Color.primary : Color.blue)
                 .background(Color.gray.opacity(0.14))
@@ -486,7 +486,7 @@ struct ContentView: View {
             .buttonStyle(.plain)
 
             if extensionsExpanded {
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 6) {
                     ForEach(foundExtensions, id: \.self) { path in
                         extensionRow(path)
                     }
@@ -503,24 +503,36 @@ struct ContentView: View {
                     } label: {
                         HStack {
                             Image(systemName: selectedExtensionsToRemove.count == foundExtensions.count ? "checkmark.circle.fill" : "circle")
-                                .font(.title3)
+                                .font(.body)
 
                             Text(selectedExtensionsToRemove.count == foundExtensions.count ? "Deselect All" : "Select All")
                                 .font(.subheadline.weight(.semibold))
 
                             Spacer()
                         }
-                        .font(.subheadline)
-                        .padding(.vertical, 8)
+                        .padding(.vertical, 7)
                         .padding(.horizontal, 10)
                         .background(Color.gray.opacity(0.10))
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                        .clipShape(RoundedRectangle(cornerRadius: 9))
                     }
                     .buttonStyle(.plain)
+
+                    if let infoPath = expandedExtensionInfo {
+                        Text(extensionTip(for: extensionName(from: infoPath)))
+                            .font(.caption.weight(.regular))
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.vertical, 8)
+                            .padding(.horizontal, 10)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color.gray.opacity(0.10))
+                            .clipShape(RoundedRectangle(cornerRadius: 9))
+                            .transition(.opacity.combined(with: .move(edge: .top)))
+                    }
                 }
-                .padding(8)
-                .background(Color.gray.opacity(0.07))
-                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .padding(7)
+                .background(Color.gray.opacity(0.06))
+                .clipShape(RoundedRectangle(cornerRadius: 11))
             }
         }
     }
@@ -544,7 +556,7 @@ struct ContentView: View {
                 } label: {
                     HStack(spacing: 8) {
                         Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                            .font(.title3)
+                            .font(.body)
                             .foregroundStyle(isSelected ? Color.blue : Color.secondary)
 
                         Text(name)
@@ -586,27 +598,19 @@ struct ContentView: View {
                 } label: {
                     Image(systemName: "info.circle.fill")
                         .foregroundStyle(Color.blue)
-                        .frame(width: 42, height: 34)
+                        .frame(width: 40, height: 30)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }
 
-            if isExpanded {
-                Text(extensionTip(for: name))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.leading, 32)
-                    .transition(.opacity.combined(with: .move(edge: .top)))
-            }
         }
         .font(.subheadline)
-        .padding(.vertical, isExpanded ? 8 : 6)
+        .padding(.vertical, 5)
         .padding(.leading, 10)
         .padding(.trailing, 5)
-        .background(Color.gray.opacity(0.10))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .background(isExpanded ? Color.gray.opacity(0.14) : Color.gray.opacity(0.10))
+        .clipShape(RoundedRectangle(cornerRadius: 9))
     }
 
 
