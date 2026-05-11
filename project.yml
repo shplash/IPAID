@@ -5,6 +5,11 @@ options:
   deploymentTarget:
     iOS: "15.0"
 
+packages:
+  ZIPFoundation:
+    url: https://github.com/weichsel/ZIPFoundation.git
+    from: 0.9.19
+
 targets:
   IPAID:
     type: application
@@ -13,6 +18,9 @@ targets:
 
     sources:
       - App
+
+    dependencies:
+      - package: ZIPFoundation
 
     settings:
       PRODUCT_BUNDLE_IDENTIFIER: com.shplash.ipaid
@@ -30,12 +38,4 @@ targets:
           UIApplicationSupportsMultipleScenes: false
 
     scheme:
-      gatherCoverageData: false
-      testTargets: []
-
-    postBuildScripts:
-      - name: Package IPA
-        script: |
-          mkdir -p Payload
-          cp -r "${BUILT_PRODUCTS_DIR}/IPAID.app" Payload/
-          zip -r IPAID.ipa Payload
+     
