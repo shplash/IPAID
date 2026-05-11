@@ -219,7 +219,7 @@ struct ContentView: View {
                             } label: {
                                 Text("Unload")
                                     .fontWeight(.semibold)
-                                    .foregroundStyle(.primary.opacity(0.68))
+                                    .foregroundStyle(.primary.opacity(0.78))
                                     .padding(.vertical, 9)
                                     .padding(.horizontal, 16)
                                     .background(Color.gray.opacity(0.18))
