@@ -5,10 +5,6 @@
 <h1 align="center">IPAID</h1>
 
 <p align="center">
-  Lightweight iPhone IPA bundle identifier editor.
-</p>
-
-<p align="center">
   Edit bundle IDs, rename apps, manage extensions, and export updated IPA files before signing.
 </p>
 
