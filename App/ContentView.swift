@@ -336,7 +336,7 @@ struct ContentView: View {
 
                             Text("Display Name")
                                 .font(.headline.weight(.semibold))
-                                .padding(.top, 8)
+                                .padding(.top, 2)
 
                             HStack(spacing: 8) {
                                 TextField("App name", text: $displayName)
@@ -469,7 +469,7 @@ struct ContentView: View {
 
                         Text("\(selectedExtensionsToRemove.count) of \(foundExtensions.count) selected")
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.secondary.opacity(0.78))
                     }
 
                     Spacer()
@@ -519,14 +519,14 @@ struct ContentView: View {
 
                     if let infoPath = expandedExtensionInfo {
                         Text(extensionTip(for: extensionName(from: infoPath)))
-                            .font(.caption.weight(.regular))
-                            .foregroundStyle(.secondary)
+                            .font(.caption2.weight(.regular))
+                            .foregroundStyle(.secondary.opacity(0.86))
                             .fixedSize(horizontal: false, vertical: true)
-                            .padding(.vertical, 8)
-                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .padding(.horizontal, 9)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(Color.gray.opacity(0.10))
-                            .clipShape(RoundedRectangle(cornerRadius: 9))
+                            .background(Color.gray.opacity(0.075))
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
                             .transition(.opacity.combined(with: .move(edge: .top)))
                     }
                 }
