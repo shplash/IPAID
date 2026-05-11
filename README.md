@@ -1,4 +1,4 @@
-p align="center">
+<p align="center">
   <img src="assets/AppIconSourceClear.PNG" width="220" alt="IPAID Icon">
 </p>
 
