@@ -33,14 +33,6 @@
   <em>Edit bundle IDs, rename apps, clone installs, and manage extensions.</em>
 </p>
 
-<p align="center">
-  <img src="assets/example2.PNG" width="360" alt="IPAID export example">
-</p>
-
-<p align="center">
-  <em>Export summaries show applied changes and updated IPA output.</em>
-</p>
-
 ---
 
 # Why
