@@ -3,35 +3,39 @@ name: IPAID
 options:
   bundleIdPrefix: com.shplash
   deploymentTarget:
-    iOS: "16.0"
-
-packages:
-  ZIPFoundation:
-    url: https://github.com/weichsel/ZIPFoundation.git
-    from: 0.9.19
+    iOS: "15.0"
 
 targets:
   IPAID:
     type: application
     platform: iOS
-    deploymentTarget: "16.0"
+    deploymentTarget: "15.0"
 
     sources:
-      - path: App
-
-    resources:
-      - path: App/Assets.xcassets
-
-    dependencies:
-      - package: ZIPFoundation
+      - App
 
     settings:
-      base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.shplash.ipaid
-        PRODUCT_NAME: IPAID
-        INFOPLIST_FILE: App/Info.plist
-        SWIFT_VERSION: 5.0
-        TARGETED_DEVICE_FAMILY: 1
-        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
-        CODE_SIGN_STYLE: Automatic
+      PRODUCT_BUNDLE_IDENTIFIER: com.shplash.ipaid
+      PRODUCT_NAME: IPAID
+      INFOPLIST_FILE: App/Info.plist
+      SWIFT_VERSION: 5.0
+      CURRENT_PROJECT_VERSION: 11
+      MARKETING_VERSION: 1.1
+
+    info:
+      path: App/Info.plist
+      properties:
+        UILaunchScreen: {}
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+
+    scheme:
+      gatherCoverageData: false
+      testTargets: []
+
+    postBuildScripts:
+      - name: Package IPA
+        script: |
+          mkdir -p Payload
+          cp -r "${BUILT_PRODUCTS_DIR}/IPAID.app" Payload/
+          zip -r IPAID.ipa Payload
