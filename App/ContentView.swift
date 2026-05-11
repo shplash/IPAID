@@ -190,7 +190,7 @@ struct ContentView: View {
                     if !originalFileName.isEmpty {
                         VStack(alignment: .leading, spacing: 4) {
                             Text("Loaded IPA")
-                                .font(.caption.bold())
+                                .font(.caption.weight(.semibold))
                                 .foregroundStyle(.secondary)
 
                             Text(displayedOriginalFileName)
@@ -238,7 +238,7 @@ struct ContentView: View {
                         VStack(alignment: .leading, spacing: 10) {
 
                             Text("Current Bundle ID")
-                                .font(.headline)
+                                .font(.headline.weight(.semibold))
 
                             HStack {
                                 Text(currentBundleID)
@@ -268,7 +268,7 @@ struct ContentView: View {
                             }
 
                             Text("New Bundle ID")
-                                .font(.headline)
+                                .font(.headline.weight(.semibold))
                                 .padding(.top, 8)
 
                             HStack(spacing: 10) {
@@ -324,7 +324,7 @@ struct ContentView: View {
                                 HStack {
                                     Image(systemName: duplicateMode ? "checkmark.circle.fill" : "circle")
                                     Text("Clone App")
-                                        .fontWeight(.semibold)
+                                        .font(.callout.weight(.semibold))
                                     Spacer()
                                 }
                                 .padding(.vertical, 12)
@@ -340,11 +340,12 @@ struct ContentView: View {
                             }
 
                             Text("Display Name")
-                                .font(.headline)
+                                .font(.headline.weight(.semibold))
                                 .padding(.top, 8)
 
                             HStack(spacing: 10) {
                                 TextField("App name", text: $displayName)
+                                    .font(.body.weight(.regular))
                                     .lineLimit(1)
 
                                 Button {
@@ -373,7 +374,7 @@ struct ContentView: View {
 
                             if !currentChangeMessage.isEmpty {
                                 Text(currentChangeMessage)
-                                    .font(.callout)
+                                    .font(.callout.weight(.regular))
                                     .foregroundStyle(validationColor)
                                     .padding(.top, 4)
                             }
@@ -387,13 +388,13 @@ struct ContentView: View {
 
                             if !status.isEmpty && status.hasPrefix("Export") {
                                 Text(status)
-                                    .font(.callout)
+                                    .font(.subheadline.weight(.regular))
                                     .foregroundStyle(.secondary)
                             }
 
                             if !exportSummary.isEmpty {
                                 Text(exportSummary)
-                                    .font(.callout)
+                                    .font(.subheadline.weight(.regular))
                                     .foregroundStyle(.secondary)
                                     .fixedSize(horizontal: false, vertical: true)
                             }
@@ -404,7 +405,7 @@ struct ContentView: View {
                     if let exportURL {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Output")
-                                .font(.headline)
+                                .font(.headline.weight(.semibold))
 
                             Button {
                                 UIPasteboard.general.string = exportURL.lastPathComponent
@@ -416,7 +417,7 @@ struct ContentView: View {
                             } label: {
                                 HStack {
                                     Text(exportURL.lastPathComponent)
-                                        .font(.system(.callout, design: .monospaced))
+                                        .font(.callout.weight(.regular))
                                         .lineLimit(1)
                                         .truncationMode(.middle)
 
@@ -469,7 +470,7 @@ struct ContentView: View {
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Remove Extensions")
-                            .fontWeight(.semibold)
+                            .font(.callout.weight(.semibold))
 
                         Text("\(selectedExtensionsToRemove.count) of \(foundExtensions.count) selected")
                             .font(.caption)
@@ -510,7 +511,7 @@ struct ContentView: View {
                                 .font(.title3)
 
                             Text(selectedExtensionsToRemove.count == foundExtensions.count ? "Deselect All Extensions" : "Select All Extensions")
-                                .fontWeight(.semibold)
+                                .font(.callout.weight(.semibold))
 
                             Spacer()
                         }
