@@ -27,8 +27,8 @@ targets:
       PRODUCT_NAME: IPAID
       INFOPLIST_FILE: App/Info.plist
       SWIFT_VERSION: 5.0
-      CURRENT_PROJECT_VERSION: 11
-      MARKETING_VERSION: 1.1
+      CURRENT_PROJECT_VERSION: 111
+      MARKETING_VERSION: 1.1.1
 
     info:
       path: App/Info.plist
