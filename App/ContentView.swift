@@ -19,6 +19,8 @@ struct ContentView: View {
     @State private var foundExtensions: [String] = []
     @State private var selectedExtensionsToRemove: Set<String> = []
     @State private var extensionsExpanded = false
+    @State private var expandedExtensionInfo: String?
+    @State private var copiedFilename = false
     @State private var validationMessage = ""
 
     @State private var appVersion = ""
@@ -48,19 +50,70 @@ struct ContentView: View {
         return false
     }
 
+    private var currentChangeMessage: String {
+        guard !currentBundleID.isEmpty else {
+            return ""
+        }
+
+        let cleanID = newBundleID.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanName = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanOriginalName = originalDisplayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let validation = validateBundleID(cleanID)
+        let sameBundleID = cleanID == currentBundleID.trimmingCharacters(in: .whitespacesAndNewlines)
+        let nameChanged = cleanName != cleanOriginalName
+        let extensionChanges = !selectedExtensionsToRemove.isEmpty
+
+        if validation != "Bundle ID looks valid."
+            && validation != "Bundle ID is the same as the original." {
+            return validation
+        }
+
+        if sameBundleID && !nameChanged && !extensionChanges {
+            return "No changes detected."
+        }
+
+        if sameBundleID {
+            return "Bundle ID unchanged — app may replace the original install."
+        }
+
+        return "Bundle ID looks valid."
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 18) {
 
-                    Text("IPA Bundle ID Editor")
-                        .font(.largeTitle.bold())
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("IPAID")
+                            .font(.title.bold())
 
-                    Text(status)
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
+                        Text("Modify bundle identifiers, app names, and extensions.")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                    if !originalFileName.isEmpty {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Loaded IPA")
+                                .font(.caption.bold())
+                                .foregroundStyle(.secondary)
+
+                            Text(originalFileName)
+                                .font(.callout)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                        }
                         .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    if !status.isEmpty {
+                        Text(status)
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
 
                     Button("Select IPA") {
                         showPicker = true
@@ -100,22 +153,17 @@ struct ContentView: View {
                                 .font(.headline)
                                 .padding(.top, 8)
 
-                            HStack {
+                            HStack(spacing: 10) {
                                 TextField("com.example.app", text: $newBundleID)
-                                    .textFieldStyle(.roundedBorder)
                                     .textInputAutocapitalization(.never)
                                     .autocorrectionDisabled()
-                                    .onChange(of: newBundleID) { value in
-                                        if duplicateMode && value != currentBundleID + ".ipaid" {
-                                            duplicateMode = false
-                                        }
-
-                                        validationMessage = validateBundleID(value)
-                                    }
+                                    .font(.system(.body, design: .monospaced))
+                                    .lineLimit(1)
 
                                 Button {
                                     newBundleID = ""
                                     validationMessage = validateBundleID(newBundleID)
+                                    clearStaleExportState()
                                 } label: {
                                     Image(systemName: "xmark.circle.fill")
                                 }
@@ -124,10 +172,23 @@ struct ContentView: View {
                                     if let paste = UIPasteboard.general.string {
                                         newBundleID = paste
                                         validationMessage = validateBundleID(paste)
+                                        clearStaleExportState()
                                     }
                                 } label: {
                                     Image(systemName: "doc.on.clipboard")
                                 }
+                            }
+                            .padding(.vertical, 13)
+                            .padding(.horizontal, 14)
+                            .background(Color.gray.opacity(0.12))
+                            .clipShape(RoundedRectangle(cornerRadius: 15))
+                            .onChange(of: newBundleID) { value in
+                                if duplicateMode && value != currentBundleID + ".ipaid" {
+                                    duplicateMode = false
+                                }
+
+                                validationMessage = validateBundleID(value)
+                                clearStaleExportState()
                             }
 
                             Button {
@@ -140,6 +201,7 @@ struct ContentView: View {
                                 }
 
                                 validationMessage = validateBundleID(newBundleID)
+                                clearStaleExportState()
                             } label: {
                                 HStack {
                                     Image(systemName: duplicateMode ? "checkmark.circle.fill" : "circle")
@@ -155,16 +217,21 @@ struct ContentView: View {
                             }
                             .buttonStyle(.plain)
 
+                            if !foundExtensions.isEmpty {
+                                extensionRemovalSection
+                            }
+
                             Text("Display Name")
                                 .font(.headline)
                                 .padding(.top, 8)
 
-                            HStack {
+                            HStack(spacing: 10) {
                                 TextField("App name", text: $displayName)
-                                    .textFieldStyle(.roundedBorder)
+                                    .lineLimit(1)
 
                                 Button {
                                     displayName = ""
+                                    clearStaleExportState()
                                 } label: {
                                     Image(systemName: "xmark.circle.fill")
                                 }
@@ -172,21 +239,25 @@ struct ContentView: View {
                                 Button {
                                     if let paste = UIPasteboard.general.string {
                                         displayName = paste
+                                        clearStaleExportState()
                                     }
                                 } label: {
                                     Image(systemName: "doc.on.clipboard")
                                 }
                             }
-
-                            if !foundExtensions.isEmpty {
-                                extensionRemovalSection
+                            .padding(.vertical, 13)
+                            .padding(.horizontal, 14)
+                            .background(Color.gray.opacity(0.12))
+                            .clipShape(RoundedRectangle(cornerRadius: 15))
+                            .onChange(of: displayName) { _ in
+                                clearStaleExportState()
                             }
 
-                            if !validationMessage.isEmpty {
-                                Text(validationMessage)
+                            if !currentChangeMessage.isEmpty {
+                                Text(currentChangeMessage)
                                     .font(.callout)
                                     .foregroundStyle(
-                                        validationMessage == "Bundle ID looks valid."
+                                        currentChangeMessage == "Bundle ID looks valid."
                                         ? .green
                                         : .orange
                                     )
@@ -213,12 +284,33 @@ struct ContentView: View {
                             Text("Output")
                                 .font(.headline)
 
-                            Text(exportURL.lastPathComponent)
-                                .font(.system(.callout, design: .monospaced))
+                            Button {
+                                UIPasteboard.general.string = exportURL.lastPathComponent
+                                copiedFilename = true
+
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) {
+                                    copiedFilename = false
+                                }
+                            } label: {
+                                HStack {
+                                    Text(exportURL.lastPathComponent)
+                                        .font(.system(.callout, design: .monospaced))
+                                        .lineLimit(1)
+                                        .truncationMode(.middle)
+
+                                    Spacer()
+
+                                    Image(systemName: copiedFilename ? "checkmark" : "doc.on.doc")
+                                }
                                 .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                                .textSelection(.enabled)
+                            }
+                            .buttonStyle(.plain)
+
+                            if copiedFilename {
+                                Text("Copied filename")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
 
                             ShareLink(item: exportURL) {
                                 Label("Save / Share Updated IPA", systemImage: "square.and.arrow.up")
@@ -250,6 +342,9 @@ struct ContentView: View {
             Button {
                 withAnimation(.easeInOut(duration: 0.2)) {
                     extensionsExpanded.toggle()
+                    if !extensionsExpanded {
+                        expandedExtensionInfo = nil
+                    }
                 }
             } label: {
                 HStack {
@@ -261,7 +356,7 @@ struct ContentView: View {
 
                         Text("\(selectedExtensionsToRemove.count) of \(foundExtensions.count) selected")
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(selectedExtensionsToRemove.isEmpty ? Color.secondary : Color.white.opacity(0.85))
                     }
 
                     Spacer()
@@ -279,49 +374,108 @@ struct ContentView: View {
 
             if extensionsExpanded {
                 VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Button("Remove All") {
-                            selectedExtensionsToRemove = Set(foundExtensions)
-                        }
-                        .font(.caption.bold())
-
-                        Button("Keep All") {
-                            selectedExtensionsToRemove = []
-                        }
-                        .font(.caption.bold())
-                    }
-
                     ForEach(foundExtensions, id: \.self) { path in
-                        Button {
-                            if selectedExtensionsToRemove.contains(path) {
-                                selectedExtensionsToRemove.remove(path)
-                            } else {
-                                selectedExtensionsToRemove.insert(path)
-                            }
-                        } label: {
-                            HStack {
-                                Image(systemName: selectedExtensionsToRemove.contains(path) ? "checkmark.circle.fill" : "circle")
-
-                                Text(extensionName(from: path))
-                                    .lineLimit(1)
-                                    .truncationMode(.middle)
-
-                                Spacer()
-                            }
-                            .font(.callout)
-                            .padding(.vertical, 9)
-                            .padding(.horizontal, 12)
-                            .background(Color.gray.opacity(0.12))
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
-                        }
-                        .buttonStyle(.plain)
+                        extensionRow(path)
                     }
+
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            if selectedExtensionsToRemove.count == foundExtensions.count {
+                                selectedExtensionsToRemove = []
+                            } else {
+                                selectedExtensionsToRemove = Set(foundExtensions)
+                            }
+                            clearStaleExportState()
+                        }
+                    } label: {
+                        HStack {
+                            Image(systemName: selectedExtensionsToRemove.count == foundExtensions.count ? "checkmark.circle.fill" : "circle")
+                                .font(.title3)
+
+                            Text(selectedExtensionsToRemove.count == foundExtensions.count ? "Deselect All Extensions" : "Select All Extensions")
+                                .fontWeight(.semibold)
+
+                            Spacer()
+                        }
+                        .font(.callout)
+                        .padding(.vertical, 10)
+                        .padding(.horizontal, 12)
+                        .background(Color.gray.opacity(0.12))
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                    }
+                    .buttonStyle(.plain)
                 }
                 .padding(12)
                 .background(Color.gray.opacity(0.08))
                 .clipShape(RoundedRectangle(cornerRadius: 14))
             }
         }
+    }
+
+    private func extensionRow(_ path: String) -> some View {
+        let isSelected = selectedExtensionsToRemove.contains(path)
+        let isExpanded = expandedExtensionInfo == path
+        let name = extensionName(from: path)
+
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 10) {
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .font(.title3)
+                    .foregroundStyle(isSelected ? Color.blue : Color.secondary)
+
+                Button {
+                    withAnimation(.easeInOut(duration: 0.18)) {
+                        if isSelected {
+                            selectedExtensionsToRemove.remove(path)
+                        } else {
+                            selectedExtensionsToRemove.insert(path)
+                        }
+                        clearStaleExportState()
+                    }
+                } label: {
+                    Text(name)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .foregroundStyle(Color.primary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    withAnimation(.easeInOut(duration: 0.18)) {
+                        expandedExtensionInfo = isExpanded ? nil : path
+                    }
+
+                    if !isExpanded {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
+                            if expandedExtensionInfo == path {
+                                withAnimation(.easeInOut(duration: 0.18)) {
+                                    expandedExtensionInfo = nil
+                                }
+                            }
+                        }
+                    }
+                } label: {
+                    Image(systemName: "info.circle.fill")
+                        .foregroundStyle(Color.blue)
+                }
+                .buttonStyle(.plain)
+            }
+
+            if isExpanded {
+                Text(extensionTip(for: name))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.leading, 32)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+        .font(.callout)
+        .padding(.vertical, isExpanded ? 11 : 9)
+        .padding(.horizontal, 12)
+        .background(Color.gray.opacity(0.12))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
     private func handleSelectedFile(_ selected: URL) {
@@ -350,6 +504,8 @@ struct ContentView: View {
             rewrittenExtensions = 0
             selectedExtensionsToRemove = []
             extensionsExpanded = false
+            expandedExtensionInfo = nil
+            copiedFilename = false
             duplicateMode = false
 
             let (path, id, version, build, name, extensions) = try readBundleInfo(from: temp)
@@ -364,7 +520,7 @@ struct ContentView: View {
             appVersion = version
             appBuild = build
 
-            status = "Loaded: \(selected.lastPathComponent)"
+            status = ""
 
         } catch {
             UINotificationFeedbackGenerator()
@@ -527,7 +683,7 @@ struct ContentView: View {
             UINotificationFeedbackGenerator()
                 .notificationOccurred(.success)
 
-            status = "Exported updated IPA. Original file was not replaced."
+            status = "Export complete. Original file was not replaced."
 
         } catch {
             UINotificationFeedbackGenerator()
@@ -598,14 +754,99 @@ struct ContentView: View {
         return "Bundle ID looks valid."
     }
 
-    private func extensionName(from path: String) -> String {
-        let parts = path.split(separator: "/").map(String.init)
-
-        if let appExtension = parts.first(where: { $0.hasSuffix(".appex") }) {
-            return appExtension.replacingOccurrences(of: ".appex", with: "")
+    private func clearStaleExportState() {
+        guard exportURL != nil || rewrittenExtensions != 0 || status.hasPrefix("Export") else {
+            return
         }
 
-        return URL(fileURLWithPath: path).deletingPathExtension().lastPathComponent
+        exportURL = nil
+        rewrittenExtensions = 0
+        copiedFilename = false
+        status = "Changes updated. Export again to create a new IPA."
+    }
+
+    private func extensionName(from path: String) -> String {
+        let parts = path.split(separator: "/").map(String.init)
+        let rawName: String
+
+        if let appExtension = parts.first(where: { $0.hasSuffix(".appex") }) {
+            rawName = appExtension.replacingOccurrences(of: ".appex", with: "")
+        } else {
+            rawName = URL(fileURLWithPath: path).deletingPathExtension().lastPathComponent
+        }
+
+        return humanReadableExtensionName(rawName)
+    }
+
+    private func humanReadableExtensionName(_ raw: String) -> String {
+        var name = raw
+
+        if name.hasSuffix("Extension") {
+            name.removeLast("Extension".count)
+        }
+
+        name = name.replacingOccurrences(of: "_", with: " ")
+        name = name.replacingOccurrences(of: "-", with: " ")
+
+        var result = ""
+        var previousWasLowercaseOrNumber = false
+
+        for character in name {
+            let scalar = String(character)
+            let isUppercase = scalar.rangeOfCharacter(from: .uppercaseLetters) != nil
+            let isNumber = scalar.rangeOfCharacter(from: .decimalDigits) != nil
+
+            if isUppercase && previousWasLowercaseOrNumber && !result.hasSuffix(" ") {
+                result.append(" ")
+            }
+
+            result.append(character)
+            previousWasLowercaseOrNumber = scalar.rangeOfCharacter(from: .lowercaseLetters) != nil || isNumber
+        }
+
+        let cleaned = result
+            .replacingOccurrences(of: "  ", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        return cleaned.isEmpty ? raw : cleaned
+    }
+
+    private func extensionTip(for name: String) -> String {
+        let lower = name.lowercased()
+
+        if lower.contains("widget") {
+            return "Adds Home Screen or Lock Screen widget support. Removing it disables that widget."
+        }
+
+        if lower.contains("intent") || lower.contains("siri") {
+            return "Handles Siri, Shortcuts, or App Intent actions. Removing it may disable automation features."
+        }
+
+        if lower.contains("notification service") {
+            return "Handles enhanced notification content, images, or media. Removing it may make notifications more basic."
+        }
+
+        if lower.contains("notification content") {
+            return "Provides custom notification layouts. Removing it may disable rich notification views."
+        }
+
+        if lower.contains("notification") {
+            return "Supports notification-related features. Removing it may affect alerts or notification previews."
+        }
+
+        if lower.contains("safari") {
+            return "Adds Safari integration. Removing it may disable Safari extension features."
+        }
+
+        if lower.contains("share") {
+            return "Adds Share Sheet integration. Removing it may stop the app appearing in share menus."
+        }
+
+        if lower.contains("watch") {
+            return "Adds Apple Watch support. Removing it may disable watchOS companion features."
+        }
+
+        return "App extension component. Removing it can reduce signing/App ID usage, but some app features may stop working."
     }
 
     private func extensionRoot(from infoPlistPath: String) -> String {
