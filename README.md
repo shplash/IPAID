@@ -2,22 +2,30 @@
   <img src="assets/AppIconSourceClear.PNG" width="220" alt="IPAID Icon">
 </p>
 
-<p align="center">
-  <a href="https://github.com/shplash/IPAID/stargazers">
-    <img src="https://img.shields.io/github/stars/shplash/IPAID?style=for-the-badge&label=stars">
-  </a>
-  <a href="https://github.com/shplash/IPAID/releases/latest">
-    <img src="https://img.shields.io/github/v/release/shplash/IPAID?style=for-the-badge&label=release">
-  </a>
-  <a href="https://github.com/shplash/IPAID/issues">
-    <img src="https://img.shields.io/github/issues/shplash/IPAID?style=for-the-badge&label=open%20issues">
-  </a>
-</p>
-
 <h1 align="center">IPAID</h1>
 
 <p align="center">
   Lightweight IPA editor for iOS 15+
+</p>
+
+<p align="center">
+  <a href="https://github.com/shplash/IPAID/stargazers">
+    <img src="https://img.shields.io/github/stars/shplash/IPAID?style=for-the-badge&label=stars&color=729864">
+  </a>
+  <a href="https://sidestore://source?url=https://raw.githubusercontent.com/shplash/shplash-repo/main/apps.json">
+    <img src="https://img.shields.io/badge/AltSource-Get-729864?style=for-the-badge">
+  </a>
+  <br>
+  <a href="https://github.com/shplash/IPAID/releases/latest">
+    <img src="https://img.shields.io/github/v/release/shplash/IPAID?style=for-the-badge&label=release&color=0A84FF">
+  </a>
+  <a href="https://github.com/shplash/IPAID/releases/latest">
+    <img src="https://img.shields.io/badge/Download-IPA-0A84FF?style=for-the-badge">
+  </a>
+  <br>
+  <a href="https://github.com/shplash/IPAID/issues">
+    <img src="https://img.shields.io/github/issues/shplash/IPAID?style=for-the-badge&label=open%20issues&color=6E7681">
+  </a>
 </p>
 
 <br>
@@ -64,7 +72,7 @@ Use:
 - TrollStore
 - etc
 
-to install/sign the exported IPA afterward.
+to install or sign the exported IPA afterward.
 
 <br>
 
