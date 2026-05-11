@@ -3,13 +3,14 @@
 </p>
 
 <h1 align="center">IPAID</h1>
+
 <p align="center">
-   Lightweight iPhone IPA editor
+  Lightweight IPA editor for iOS 15+
 </p>
 
----
+<br>
 
-# Features
+## Features
 
 - Edit app bundle identifiers
 - Rename apps before export
@@ -21,26 +22,25 @@
 - Fully iPhone-native workflow
 - Works before signing
 
----
+<br>
 
-# Example
+## Example
 
 <p align="center">
   <img src="assets/example4.PNG" width="360" alt="IPAID editing example">
 </p>
 
+<br>
 
----
-
-# Why
+## Why
 
 Most iOS signing apps tie bundle identifier editing to signing workflows or certificate setup.
 
 IPAID directly edits the IPA itself before signing it.
 
----
+<br>
 
-# Notes
+## Notes
 
 IPAID does NOT sign apps directly.
 
@@ -54,8 +54,8 @@ Use:
 
 to install/sign the exported IPA afterward.
 
----
+<br>
 
-# License
+## License
 
 Licensed under MPL-2.0.
