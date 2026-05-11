@@ -21,6 +21,7 @@ struct ContentView: View {
     @State private var extensionsExpanded = false
     @State private var expandedExtensionInfo: String?
     @State private var infoTapLocked = false
+    @State private var infoAutoCloseToken = UUID()
     @State private var copiedFilename = false
     @State private var copiedBundleID = false
     @State private var exportSummary = ""
@@ -456,28 +457,28 @@ struct ContentView: View {
                 withAnimation(.easeInOut(duration: 0.2)) {
                     extensionsExpanded.toggle()
                     if !extensionsExpanded {
+                        infoAutoCloseToken = UUID()
                         expandedExtensionInfo = nil
                     }
                 }
             } label: {
-                HStack {
+                HStack(spacing: 8) {
                     Image(systemName: selectedExtensionsToRemove.isEmpty ? "circle" : "checkmark.circle.fill")
 
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Remove Extensions")
-                            .font(.callout.weight(.semibold))
+                    Text("Remove Extensions")
+                        .font(.callout.weight(.semibold))
 
-                        Text("\(selectedExtensionsToRemove.count) of \(foundExtensions.count) selected")
-                            .font(.caption)
-                            .foregroundStyle(.secondary.opacity(0.78))
-                    }
+                    Text("• \(selectedExtensionsToRemove.count)/\(foundExtensions.count) Selected")
+                        .font(.callout.weight(.medium))
+                        .foregroundStyle(.secondary.opacity(0.78))
+                        .lineLimit(1)
 
                     Spacer()
 
                     Image(systemName: extensionsExpanded ? "chevron.up" : "chevron.down")
                         .font(.caption.bold())
                 }
-                .padding(.vertical, 10)
+                .padding(.vertical, 9)
                 .padding(.horizontal, 14)
                 .foregroundStyle(selectedExtensionsToRemove.isEmpty ? Color.primary : Color.blue)
                 .background(Color.gray.opacity(0.14))
@@ -582,13 +583,21 @@ struct ContentView: View {
                         infoTapLocked = false
                     }
 
-                    withAnimation(.easeInOut(duration: 0.18)) {
-                        expandedExtensionInfo = isExpanded ? nil : path
-                    }
+                    if isExpanded {
+                        infoAutoCloseToken = UUID()
+                        withAnimation(.easeInOut(duration: 0.18)) {
+                            expandedExtensionInfo = nil
+                        }
+                    } else {
+                        let token = UUID()
+                        infoAutoCloseToken = token
 
-                    if !isExpanded {
+                        withAnimation(.easeInOut(duration: 0.18)) {
+                            expandedExtensionInfo = path
+                        }
+
                         DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
-                            if expandedExtensionInfo == path {
+                            if infoAutoCloseToken == token && expandedExtensionInfo == path {
                                 withAnimation(.easeInOut(duration: 0.18)) {
                                     expandedExtensionInfo = nil
                                 }
