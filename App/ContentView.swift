@@ -6,6 +6,7 @@ import UIKit
 struct ContentView: View {
 
     @State private var showPicker = false
+    @State private var showShareSheet = false
 
     @State private var ipaURL: URL?
     @State private var originalFileName = ""
@@ -168,7 +169,7 @@ struct ContentView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        NavigationView {
             ScrollView {
                 VStack(spacing: 18) {
 
@@ -431,7 +432,9 @@ struct ContentView: View {
                                     .foregroundStyle(.secondary)
                             }
 
-                            ShareLink(item: exportURL) {
+                            Button {
+                                showShareSheet = true
+                            } label: {
                                 Label("Save / Share IPA", systemImage: "square.and.arrow.up")
                             }
                             .buttonStyle(.bordered)
@@ -448,7 +451,13 @@ struct ContentView: View {
                     handleSelectedFile(url)
                 }
             }
+            .sheet(isPresented: $showShareSheet) {
+                if let exportURL {
+                    ActivityView(activityItems: [exportURL])
+                }
+            }
         }
+        .navigationViewStyle(StackNavigationViewStyle())
     }
 
     private var extensionRemovalSection: some View {
@@ -625,6 +634,7 @@ struct ContentView: View {
 
 
     private func unloadIPA() {
+        showShareSheet = false
         ipaURL = nil
         originalFileName = ""
         appInfoPlistPath = nil
@@ -1097,6 +1107,16 @@ struct ContentView: View {
 
         return data
     }
+}
+
+struct ActivityView: UIViewControllerRepresentable {
+    let activityItems: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
 
 struct DocumentPicker: UIViewControllerRepresentable {
