@@ -26,7 +26,7 @@
 # Example
 
 <p align="center">
-  <img src="assets/example3.PNG" width="360" alt="IPAID editing example">
+  <img src="assets/example4.PNG" width="360" alt="IPAID editing example">
 </p>
 
 
