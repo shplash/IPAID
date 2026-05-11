@@ -462,26 +462,27 @@ struct ContentView: View {
                     }
                 }
             } label: {
-                HStack(spacing: 8) {
+                HStack {
                     Image(systemName: selectedExtensionsToRemove.isEmpty ? "circle" : "checkmark.circle.fill")
 
-                    Text("Remove Extensions")
+                    Text("Extensions • \(selectedExtensionsToRemove.count)/\(foundExtensions.count)")
                         .font(.callout.weight(.semibold))
-
-                    Text("• \(selectedExtensionsToRemove.count)/\(foundExtensions.count) Selected")
-                        .font(.callout.weight(.medium))
-                        .foregroundStyle(.secondary.opacity(0.78))
                         .lineLimit(1)
+                        .minimumScaleFactor(0.85)
 
                     Spacer()
 
                     Image(systemName: extensionsExpanded ? "chevron.up" : "chevron.down")
                         .font(.caption.bold())
                 }
-                .padding(.vertical, 9)
+                .padding(.vertical, 11)
                 .padding(.horizontal, 14)
                 .foregroundStyle(selectedExtensionsToRemove.isEmpty ? Color.primary : Color.blue)
-                .background(Color.gray.opacity(0.14))
+                .background(Color.gray.opacity(0.12))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                )
                 .clipShape(RoundedRectangle(cornerRadius: 12))
             }
             .buttonStyle(.plain)
