@@ -1,5 +1,17 @@
 <p align="center">
-  <img src="assets/AppIconSourceClear.PNG" width="140" alt="IPAID Icon">
+  <img src="assets/AppIconSourceClear.PNG" width="220" alt="IPAID Icon">
+</p>
+
+<p align="center">
+  <a href="https://github.com/shplash/IPAID/stargazers">
+    <img src="https://img.shields.io/github/stars/shplash/IPAID?style=for-the-badge&label=stars">
+  </a>
+  <a href="https://github.com/shplash/IPAID/releases/latest">
+    <img src="https://img.shields.io/github/v/release/shplash/IPAID?style=for-the-badge&label=release">
+  </a>
+  <a href="https://github.com/shplash/IPAID/issues">
+    <img src="https://img.shields.io/github/issues/shplash/IPAID?style=for-the-badge&label=open%20issues">
+  </a>
 </p>
 
 <h1 align="center">IPAID</h1>
