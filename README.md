@@ -8,18 +8,21 @@
   Lightweight iPhone IPA bundle identifier editor.
 </p>
 
+<p align="center">
+  Edit bundle IDs, rename apps, manage extensions, and export updated IPA files before signing.
+</p>
+
 ---
 
 # Features
 
-- Select `.ipa` files directly from Files
-- Read app bundle identifiers
-- Edit main app bundle identifiers
-- Automatically rewrite `.appex` extension bundle identifiers
+- Edit app bundle identifiers
+- Rename apps before export
+- Clone apps for side-by-side installs
+- Remove unwanted app extensions
+- Automatically rewrite kept extension bundle IDs
 - Export updated `.ipa` files
 - Keeps original IPA untouched
-- Generates readable export filenames
-- No certificate required for editing
 - Fully iPhone-native workflow
 - Works before signing
 
@@ -28,7 +31,19 @@
 # Example
 
 <p align="center">
-  <img src="assets/example1.PNG" width="320" alt="IPAID Example">
+  <img src="assets/example1.PNG" width="360" alt="IPAID editing example">
+</p>
+
+<p align="center">
+  <em>Edit bundle IDs, rename apps, clone installs, and manage extensions.</em>
+</p>
+
+<p align="center">
+  <img src="assets/example2.PNG" width="360" alt="IPAID export example">
+</p>
+
+<p align="center">
+  <em>Export summaries show applied changes and updated IPA output.</em>
 </p>
 
 ---
@@ -50,23 +65,10 @@ Use:
 - AltStore
 - Feather
 - LiveContainer
-- Trollstore
+- TrollStore
 - etc
 
 to install/sign the exported IPA afterward.
-
----
-
-# Current Support
-
-- Supports iOS 16.0+
-- Main app `CFBundleIdentifier`
-- `.appex` extension bundle identifiers
-- Readable export naming
-- Extension rewrite counting
-- Version/build display
-- Copy/paste helpers
-- Success haptics
 
 ---
 
