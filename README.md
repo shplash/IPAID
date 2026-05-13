@@ -34,7 +34,9 @@
   </a>
 </p>
 
-<br>
+<p align="center">
+If you found IPAID useful, a GitHub star is always appreciated.
+</p>
 
 ## Features
 
@@ -48,23 +50,17 @@
 - Fully iPhone-native workflow
 - Works before signing
 
-<br>
-
 ## Example
 
 <p align="center">
   <img src="assets/example4.PNG" width="360" alt="IPAID editing example">
 </p>
 
-<br>
-
 ## Why
 
 Most iOS signing apps tie bundle identifier editing to signing workflows or certificate setup.
 
 IPAID directly edits the IPA itself before signing it.
-
-<br>
 
 ## Notes
 
