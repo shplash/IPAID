@@ -11,7 +11,7 @@ jobs:
 
     steps:
       - name: Checkout source repo
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: shplash/shplash-repo
           token: ${{ secrets.SOURCE_REPO_TOKEN }}
