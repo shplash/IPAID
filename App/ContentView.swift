@@ -9,31 +9,42 @@ struct ContentView: View {
     @State private var showShareSheet = false
 
     @State private var ipaURL: URL?
-    @State private var temporaryInputURL: URL?
     @State private var originalFileName = ""
     @State private var appInfoPlistPath: String?
 
     @State private var currentBundleID = ""
     @State private var newBundleID = ""
+
     @State private var displayName = ""
     @State private var originalDisplayName = ""
+
     @State private var duplicateMode = false
+
     @State private var foundExtensions: [String] = []
     @State private var selectedExtensionsToRemove: Set<String> = []
     @State private var extensionsExpanded = false
     @State private var expandedExtensionInfo: String?
+
     @State private var infoTapLocked = false
     @State private var infoAutoCloseToken = UUID()
+
     @State private var copiedFilename = false
     @State private var copiedBundleID = false
+
     @State private var exportSummary = ""
+    @State private var validationMessage = ""
 
     @State private var appVersion = ""
     @State private var appBuild = ""
 
     @State private var rewrittenExtensions = 0
+
     @State private var status = "Select an IPA to begin."
     @State private var exportURL: URL?
+
+    @State private var isExporting = false
+    @State private var exportProgress: Double = 0
+    @State private var exportProgressText = ""
 
     private var cleanNewBundleID: String {
         newBundleID.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -75,6 +86,7 @@ struct ContentView: View {
     }
 
     private var canExport: Bool {
+        !isExporting &&
         currentValidationTone != .red &&
         hasPendingChanges
     }
@@ -92,6 +104,10 @@ struct ContentView: View {
         }
 
         if !validateBundleID(cleanNewBundleID).isEmpty {
+            return .red
+        }
+
+        if cleanNewBundleID.count > 120 {
             return .red
         }
 
@@ -145,6 +161,10 @@ struct ContentView: View {
             return bundleError
         }
 
+        if cleanNewBundleID.count > 120 {
+            return "Bundle ID is too long."
+        }
+
         if cleanDisplayName.isEmpty {
             return "Display name cannot be empty."
         }
@@ -170,431 +190,33 @@ struct ContentView: View {
 
     var body: some View {
         NavigationView {
-            ScrollView {
-                VStack(spacing: 18) {
+            ZStack {
+                Color(uiColor: .systemGroupedBackground)
+                    .ignoresSafeArea()
 
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack(
-                            alignment: .firstTextBaseline,
-                            spacing: 10
-                        ) {
-                            Text("IPAID")
-                                .font(.largeTitle.bold())
+                ScrollView {
+                    VStack(spacing: 16) {
 
-                            Text("v1.1.1")
-                                .font(.headline.weight(.semibold))
-                                .foregroundStyle(.secondary)
+                        headerSection
+
+                        if currentBundleID.isEmpty {
+                            emptyStateSection
+                        } else {
+                            editorSection
                         }
 
-                        if !originalFileName.isEmpty {
-                            Text("Loaded: \(displayedOriginalFileName)")
-                                .font(.callout.weight(.medium))
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
+                        if let exportURL {
+                            outputSection(exportURL)
                         }
+
+                        Spacer(minLength: 30)
                     }
-                    .frame(
-                        maxWidth: .infinity,
-                        alignment: .leading
-                    )
-
-                    if currentBundleID.isEmpty && !status.isEmpty {
-                        Text(status)
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                            .frame(
-                                maxWidth: .infinity,
-                                alignment: .leading
-                            )
-                    }
-
-                    HStack(spacing: 8) {
-                        Button("Select IPA") {
-                            showPicker = true
-                        }
-                        .buttonStyle(.borderedProminent)
-
-                        if !currentBundleID.isEmpty {
-                            Button {
-                                unloadIPA()
-                            } label: {
-                                Text("Unload")
-                                    .fontWeight(.semibold)
-                                    .foregroundStyle(
-                                        .primary.opacity(0.78)
-                                    )
-                                    .padding(.vertical, 9)
-                                    .padding(.horizontal, 16)
-                                    .background(
-                                        Color.gray.opacity(0.18)
-                                    )
-                                    .overlay(
-                                        RoundedRectangle(
-                                            cornerRadius: 10
-                                        )
-                                        .stroke(
-                                            Color.white.opacity(0.08),
-                                            lineWidth: 1
-                                        )
-                                    )
-                                    .clipShape(
-                                        RoundedRectangle(
-                                            cornerRadius: 10
-                                        )
-                                    )
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                    .frame(
-                        maxWidth: .infinity,
-                        alignment: .leading
-                    )
-
-                    if !currentBundleID.isEmpty {
-                        VStack(
-                            alignment: .leading,
-                            spacing: 6
-                        ) {
-
-                            Text("Current Bundle ID")
-                                .font(.headline.weight(.semibold))
-
-                            HStack {
-                                Text(currentBundleID)
-                                    .font(
-                                        .system(
-                                            .body,
-                                            design: .monospaced
-                                        )
-                                    )
-                                    .lineLimit(1)
-                                    .truncationMode(.middle)
-                                    .textSelection(.enabled)
-
-                                Spacer()
-
-                                Button {
-                                    UIPasteboard.general.string =
-                                        currentBundleID
-
-                                    copiedBundleID = true
-
-                                    DispatchQueue.main.asyncAfter(
-                                        deadline: .now() + 1.2
-                                    ) {
-                                        copiedBundleID = false
-                                    }
-                                } label: {
-                                    Image(
-                                        systemName:
-                                            copiedBundleID
-                                            ? "checkmark"
-                                            : "doc.on.doc"
-                                    )
-                                }
-                            }
-
-                            if !appVersion.isEmpty {
-                                Text(
-                                    "v\(appVersion) • build \(appBuild)"
-                                )
-                                .font(.callout)
-                                .foregroundStyle(.secondary)
-                            }
-
-                            Text("New Bundle ID")
-                                .font(.headline.weight(.semibold))
-                                .padding(.top, 8)
-
-                            HStack(spacing: 8) {
-                                TextField(
-                                    "com.example.app",
-                                    text: $newBundleID
-                                )
-                                .textInputAutocapitalization(.never)
-                                .autocorrectionDisabled()
-                                .font(
-                                    .system(
-                                        .body,
-                                        design: .monospaced
-                                    )
-                                )
-                                .lineLimit(1)
-
-                                Button {
-                                    newBundleID = ""
-                                    clearStaleExportState()
-                                } label: {
-                                    Image(
-                                        systemName:
-                                            "xmark.circle.fill"
-                                    )
-                                }
-
-                                Button {
-                                    if let paste =
-                                        UIPasteboard.general.string {
-                                        newBundleID = paste
-                                        clearStaleExportState()
-                                    }
-                                } label: {
-                                    Image(
-                                        systemName:
-                                            "doc.on.clipboard"
-                                    )
-                                }
-                            }
-                            .padding(.vertical, 13)
-                            .padding(.horizontal, 14)
-                            .background(
-                                Color.gray.opacity(0.12)
-                            )
-                            .clipShape(
-                                RoundedRectangle(
-                                    cornerRadius: 15
-                                )
-                            )
-                            .onChange(of: newBundleID) { value in
-                                if duplicateMode &&
-                                    value !=
-                                    currentBundleID + ".ipaid" {
-                                    duplicateMode = false
-                                }
-
-                                clearStaleExportState()
-                            }
-
-                            Button {
-                                duplicateMode.toggle()
-
-                                if duplicateMode {
-                                    newBundleID =
-                                        currentBundleID + ".ipaid"
-                                } else {
-                                    newBundleID =
-                                        currentBundleID
-                                }
-
-                                clearStaleExportState()
-                            } label: {
-                                HStack {
-                                    Image(
-                                        systemName:
-                                            duplicateMode
-                                            ? "checkmark.circle.fill"
-                                            : "circle"
-                                    )
-
-                                    Text("Clone App")
-                                        .font(
-                                            .callout.weight(
-                                                .semibold
-                                            )
-                                        )
-
-                                    Spacer()
-                                }
-                                .padding(.vertical, 11)
-                                .padding(.horizontal, 14)
-                                .foregroundStyle(
-                                    duplicateMode
-                                    ? Color.blue
-                                    : Color.primary
-                                )
-                                .background(
-                                    Color.gray.opacity(0.12)
-                                )
-                                .overlay(
-                                    RoundedRectangle(
-                                        cornerRadius: 12
-                                    )
-                                    .stroke(
-                                        Color.white.opacity(0.06),
-                                        lineWidth: 1
-                                    )
-                                )
-                                .clipShape(
-                                    RoundedRectangle(
-                                        cornerRadius: 12
-                                    )
-                                )
-                            }
-                            .buttonStyle(.plain)
-
-                            if !foundExtensions.isEmpty {
-                                extensionRemovalSection
-                            }
-
-                            Text("Display Name")
-                                .font(.headline.weight(.semibold))
-                                .padding(.top, 2)
-
-                            HStack(spacing: 8) {
-                                TextField(
-                                    "App name",
-                                    text: $displayName
-                                )
-                                .font(.body.weight(.regular))
-                                .lineLimit(1)
-
-                                Button {
-                                    displayName = ""
-                                    clearStaleExportState()
-                                } label: {
-                                    Image(
-                                        systemName:
-                                            "xmark.circle.fill"
-                                    )
-                                }
-
-                                Button {
-                                    if let paste =
-                                        UIPasteboard.general.string {
-                                        displayName = paste
-                                        clearStaleExportState()
-                                    }
-                                } label: {
-                                    Image(
-                                        systemName:
-                                            "doc.on.clipboard"
-                                    )
-                                }
-                            }
-                            .padding(.vertical, 13)
-                            .padding(.horizontal, 14)
-                            .background(
-                                Color.gray.opacity(0.12)
-                            )
-                            .clipShape(
-                                RoundedRectangle(
-                                    cornerRadius: 15
-                                )
-                            )
-                            .onChange(of: displayName) { _ in
-                                clearStaleExportState()
-                            }
-
-                            if !currentChangeMessage.isEmpty {
-                                Text(currentChangeMessage)
-                                    .font(
-                                        .subheadline.weight(
-                                            .regular
-                                        )
-                                    )
-                                    .foregroundStyle(
-                                        validationColor
-                                    )
-                                    .padding(.top, 3)
-                            }
-
-                            Button("Export Updated IPA") {
-                                exportUpdatedIPA()
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .disabled(!canExport)
-                            .padding(.top, 4)
-
-                            if !status.isEmpty &&
-                                status.hasPrefix("Export") {
-                                Text(status)
-                                    .font(
-                                        .subheadline.weight(
-                                            .regular
-                                        )
-                                    )
-                                    .foregroundStyle(.secondary)
-                            }
-
-                            if !exportSummary.isEmpty {
-                                Text(exportSummary)
-                                    .font(
-                                        .subheadline.weight(
-                                            .regular
-                                        )
-                                    )
-                                    .foregroundStyle(.secondary)
-                                    .fixedSize(
-                                        horizontal: false,
-                                        vertical: true
-                                    )
-                            }
-                        }
-                        .frame(
-                            maxWidth: .infinity,
-                            alignment: .leading
-                        )
-                    }
-
-                    if let exportURL {
-                        VStack(
-                            alignment: .leading,
-                            spacing: 8
-                        ) {
-                            Text("Output")
-                                .font(.headline.weight(.semibold))
-
-                            Button {
-                                UIPasteboard.general.string =
-                                    exportURL.lastPathComponent
-
-                                copiedFilename = true
-
-                                DispatchQueue.main.asyncAfter(
-                                    deadline: .now() + 1.4
-                                ) {
-                                    copiedFilename = false
-                                }
-                            } label: {
-                                HStack {
-                                    Text(
-                                        exportURL.lastPathComponent
-                                    )
-                                    .font(.callout.weight(.regular))
-                                    .lineLimit(1)
-                                    .truncationMode(.middle)
-
-                                    Spacer()
-
-                                    Image(
-                                        systemName:
-                                            copiedFilename
-                                            ? "checkmark"
-                                            : "doc.on.doc"
-                                    )
-                                }
-                                .foregroundStyle(.secondary)
-                            }
-                            .buttonStyle(.plain)
-
-                            if copiedFilename {
-                                Text("Copied filename")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-
-                            Button {
-                                showShareSheet = true
-                            } label: {
-                                Label(
-                                    "Save / Share IPA",
-                                    systemImage:
-                                        "square.and.arrow.up"
-                                )
-                            }
-                            .buttonStyle(.bordered)
-                        }
-                        .frame(
-                            maxWidth: .infinity,
-                            alignment: .leading
-                        )
-                    }
-
-                    Spacer()
+                    .padding(.horizontal, 16)
+                    .padding(.top, 12)
+                    .padding(.bottom, 24)
                 }
-                .padding()
             }
+            .navigationBarHidden(true)
             .sheet(isPresented: $showPicker) {
                 DocumentPicker { url in
                     handleSelectedFile(url)
@@ -602,26 +224,516 @@ struct ContentView: View {
             }
             .sheet(isPresented: $showShareSheet) {
                 if let exportURL {
-                    ActivityView(
-                        activityItems: [exportURL]
-                    )
+                    ActivityView(activityItems: [exportURL])
                 }
             }
         }
-        .navigationViewStyle(
-            StackNavigationViewStyle()
-        )
+        .navigationViewStyle(StackNavigationViewStyle())
+    }
+
+    private var headerSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("IPAID")
+                        .font(.system(size: 34, weight: .bold, design: .rounded))
+
+                    Text("IPA Bundle ID Editor")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                Text("1.2")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 5)
+                    .background(Color.secondary.opacity(0.12))
+                    .clipShape(Capsule())
+            }
+
+            if !originalFileName.isEmpty {
+                HStack(spacing: 7) {
+                    Image(systemName: "doc.zipper")
+                        .font(.caption)
+
+                    Text(displayedOriginalFileName)
+                        .font(.caption.weight(.medium))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+
+                    Spacer()
+
+                    if !currentBundleID.isEmpty {
+                        Button("Unload") {
+                            unloadIPA()
+                        }
+                        .font(.caption.weight(.semibold))
+                    }
+                }
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 9)
+                .background(Color.secondary.opacity(0.08))
+                .clipShape(RoundedRectangle(cornerRadius: 11))
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var emptyStateSection: some View {
+        VStack(spacing: 18) {
+            Image(systemName: "shippingbox")
+                .font(.system(size: 42))
+                .foregroundStyle(.blue)
+
+            VStack(spacing: 5) {
+                Text("Choose an IPA")
+                    .font(.title3.weight(.bold))
+
+                Text("Load an IPA to inspect and modify its bundle configuration.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+
+            Button {
+                showPicker = true
+            } label: {
+                Label("Select IPA", systemImage: "folder")
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 13)
+            }
+            .buttonStyle(.borderedProminent)
+        }
+        .padding(24)
+        .frame(maxWidth: .infinity)
+        .background(Color(uiColor: .secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 20))
+    }
+
+    private var editorSection: some View {
+        VStack(spacing: 14) {
+
+            appOverviewCard
+
+            bundleIDCard
+
+            extensionCard
+
+            displayNameCard
+
+            validationCard
+
+            exportCard
+        }
+    }
+
+    private var appOverviewCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            sectionTitle(
+                icon: "app.badge",
+                title: "App Information"
+            )
+
+            HStack {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(displayName.isEmpty ? "Unnamed App" : displayName)
+                        .font(.headline)
+
+                    Text(currentBundleID)
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+
+                Spacer()
+
+                VStack(alignment: .trailing, spacing: 3) {
+                    if !appVersion.isEmpty {
+                        Text("v\(appVersion)")
+                            .font(.subheadline.weight(.semibold))
+                    }
+
+                    Text("Build \(appBuild)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .cardStyle()
+    }
+
+    private var bundleIDCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+
+            sectionTitle(
+                icon: "shippingbox.fill",
+                title: "Bundle ID"
+            )
+
+            HStack(spacing: 8) {
+                Text(currentBundleID)
+                    .font(.system(.body, design: .monospaced))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .textSelection(.enabled)
+
+                Spacer()
+
+                Button {
+                    UIPasteboard.general.string = currentBundleID
+                    copiedBundleID = true
+
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                        copiedBundleID = false
+                    }
+                } label: {
+                    Image(systemName: copiedBundleID ? "checkmark" : "doc.on.doc")
+                }
+                .buttonStyle(.plain)
+            }
+            .foregroundStyle(.secondary)
+
+            Divider()
+
+            Text("New Bundle ID")
+                .font(.subheadline.weight(.semibold))
+
+            HStack(spacing: 8) {
+                TextField(
+                    "com.example.app",
+                    text: $newBundleID
+                )
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .font(.system(.body, design: .monospaced))
+                .lineLimit(1)
+
+                if !newBundleID.isEmpty {
+                    Button {
+                        newBundleID = ""
+                        duplicateMode = false
+                        validationMessage = validateBundleID(newBundleID)
+                        clearStaleExportState()
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                Button {
+                    if let paste = UIPasteboard.general.string {
+                        newBundleID = paste
+                        validationMessage = validateBundleID(paste)
+                        clearStaleExportState()
+                    }
+                } label: {
+                    Image(systemName: "doc.on.clipboard")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 13)
+            .padding(.vertical, 12)
+            .background(Color.secondary.opacity(0.08))
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .onChange(of: newBundleID) { value in
+                if duplicateMode &&
+                    value != currentBundleID + ".ipaid" {
+                    duplicateMode = false
+                }
+
+                validationMessage = validateBundleID(value)
+                clearStaleExportState()
+            }
+
+            Button {
+                duplicateMode.toggle()
+
+                if duplicateMode {
+                    newBundleID = currentBundleID + ".ipaid"
+                } else {
+                    newBundleID = currentBundleID
+                }
+
+                validationMessage = validateBundleID(newBundleID)
+                clearStaleExportState()
+            } label: {
+                HStack(spacing: 9) {
+                    Image(
+                        systemName:
+                            duplicateMode
+                            ? "checkmark.circle.fill"
+                            : "circle"
+                    )
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Clone App")
+                            .font(.subheadline.weight(.semibold))
+
+                        Text("Use a different Bundle ID")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer()
+                }
+                .foregroundStyle(
+                    duplicateMode
+                    ? Color.blue
+                    : Color.primary
+                )
+            }
+            .buttonStyle(.plain)
+        }
+        .cardStyle()
+    }
+
+    private var extensionCard: some View {
+        Group {
+            if !foundExtensions.isEmpty {
+                extensionRemovalSection
+                    .cardStyle()
+            }
+        }
+    }
+
+    private var displayNameCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+
+            sectionTitle(
+                icon: "textformat",
+                title: "Display Name"
+            )
+
+            HStack(spacing: 8) {
+                TextField(
+                    "App name",
+                    text: $displayName
+                )
+                .lineLimit(1)
+
+                if !displayName.isEmpty {
+                    Button {
+                        displayName = ""
+                        clearStaleExportState()
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                Button {
+                    if let paste = UIPasteboard.general.string {
+                        displayName = paste
+                        clearStaleExportState()
+                    }
+                } label: {
+                    Image(systemName: "doc.on.clipboard")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 13)
+            .padding(.vertical, 12)
+            .background(Color.secondary.opacity(0.08))
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .onChange(of: displayName) { _ in
+                clearStaleExportState()
+            }
+
+            HStack {
+                Text("\(cleanDisplayName.count)/30 characters")
+                    .font(.caption)
+                    .foregroundStyle(
+                        cleanDisplayName.count > 30
+                        ? .red
+                        : .secondary
+                    )
+
+                Spacer()
+            }
+        }
+        .cardStyle()
+    }
+
+    private var validationCard: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: validationIcon)
+                .foregroundStyle(validationColor)
+
+            Text(currentChangeMessage)
+                .font(.subheadline)
+                .foregroundStyle(validationColor)
+
+            Spacer(minLength: 0)
+        }
+        .padding(13)
+        .background(validationColor.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    private var validationIcon: String {
+        switch currentValidationTone {
+        case .red:
+            return "exclamationmark.triangle.fill"
+
+        case .orange:
+            return "exclamationmark.circle.fill"
+
+        case .green:
+            return "checkmark.circle.fill"
+
+        case .none:
+            return "info.circle"
+        }
+    }
+
+    private var exportCard: some View {
+        VStack(spacing: 12) {
+
+            if isExporting {
+                VStack(alignment: .leading, spacing: 9) {
+                    HStack {
+                        Text("Exporting IPA")
+                            .font(.subheadline.weight(.semibold))
+
+                        Spacer()
+
+                        Text("\(Int(exportProgress * 100))%")
+                            .font(.caption.weight(.bold))
+                            .monospacedDigit()
+                    }
+
+                    ProgressView(value: exportProgress)
+                        .progressViewStyle(.linear)
+
+                    Text(exportProgressText)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+
+            Button {
+                exportUpdatedIPA()
+            } label: {
+                HStack {
+                    if isExporting {
+                        ProgressView()
+                            .tint(.white)
+                    } else {
+                        Image(systemName: "arrow.down.doc.fill")
+                    }
+
+                    Text(
+                        isExporting
+                        ? "Exporting…"
+                        : "Export Updated IPA"
+                    )
+                    .font(.headline)
+
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(!canExport)
+
+            if !exportSummary.isEmpty {
+                Text(exportSummary)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .cardStyle()
+    }
+
+    private func outputSection(_ url: URL) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+
+            sectionTitle(
+                icon: "checkmark.circle.fill",
+                title: "Export Ready"
+            )
+
+            Button {
+                UIPasteboard.general.string = url.lastPathComponent
+                copiedFilename = true
+
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) {
+                    copiedFilename = false
+                }
+            } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "doc.zipper")
+                        .foregroundStyle(.blue)
+
+                    Text(url.lastPathComponent)
+                        .font(.callout)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+
+                    Spacer()
+
+                    Image(
+                        systemName:
+                            copiedFilename
+                            ? "checkmark"
+                            : "doc.on.doc"
+                    )
+                }
+                .foregroundStyle(.primary)
+            }
+            .buttonStyle(.plain)
+
+            Button {
+                showShareSheet = true
+            } label: {
+                Label(
+                    "Save / Share IPA",
+                    systemImage: "square.and.arrow.up"
+                )
+                .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+
+            if !status.isEmpty {
+                Text(status)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .cardStyle()
+    }
+
+    private func sectionTitle(
+        icon: String,
+        title: String
+    ) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .foregroundStyle(.blue)
+
+            Text(title)
+                .font(.headline.weight(.bold))
+        }
     }
 
     private var extensionRemovalSection: some View {
-        VStack(
-            alignment: .leading,
-            spacing: 8
-        ) {
+        VStack(alignment: .leading, spacing: 10) {
+
             Button {
-                withAnimation(
-                    .easeInOut(duration: 0.2)
-                ) {
+                withAnimation(.easeInOut(duration: 0.2)) {
                     extensionsExpanded.toggle()
 
                     if !extensionsExpanded {
@@ -634,18 +746,20 @@ struct ContentView: View {
                     Image(
                         systemName:
                             selectedExtensionsToRemove.isEmpty
-                            ? "circle"
+                            ? "puzzlepiece.extension"
                             : "checkmark.circle.fill"
                     )
 
-                    Text(
-                        "Extensions • " +
-                        "\(selectedExtensionsToRemove.count)/" +
-                        "\(foundExtensions.count)"
-                    )
-                    .font(.callout.weight(.semibold))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.85)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Extensions")
+                            .font(.headline.weight(.semibold))
+
+                        Text(
+                            "\(selectedExtensionsToRemove.count) of \(foundExtensions.count) selected"
+                        )
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    }
 
                     Spacer()
 
@@ -657,49 +771,23 @@ struct ContentView: View {
                     )
                     .font(.caption.bold())
                 }
-                .padding(.vertical, 11)
-                .padding(.horizontal, 14)
                 .foregroundStyle(
                     selectedExtensionsToRemove.isEmpty
                     ? Color.primary
                     : Color.blue
                 )
-                .background(
-                    Color.gray.opacity(0.12)
-                )
-                .overlay(
-                    RoundedRectangle(
-                        cornerRadius: 12
-                    )
-                    .stroke(
-                        Color.white.opacity(0.06),
-                        lineWidth: 1
-                    )
-                )
-                .clipShape(
-                    RoundedRectangle(
-                        cornerRadius: 12
-                    )
-                )
             }
             .buttonStyle(.plain)
 
             if extensionsExpanded {
-                VStack(
-                    alignment: .leading,
-                    spacing: 6
-                ) {
-                    ForEach(
-                        foundExtensions,
-                        id: \.self
-                    ) { path in
+                VStack(alignment: .leading, spacing: 7) {
+
+                    ForEach(foundExtensions, id: \.self) { path in
                         extensionRow(path)
                     }
 
                     Button {
-                        withAnimation(
-                            .easeInOut(duration: 0.2)
-                        ) {
+                        withAnimation(.easeInOut(duration: 0.2)) {
                             if selectedExtensionsToRemove.count ==
                                 foundExtensions.count {
                                 selectedExtensionsToRemove = []
@@ -719,7 +807,6 @@ struct ContentView: View {
                                     ? "checkmark.circle.fill"
                                     : "circle"
                             )
-                            .font(.body)
 
                             Text(
                                 selectedExtensionsToRemove.count ==
@@ -727,89 +814,22 @@ struct ContentView: View {
                                 ? "Deselect All"
                                 : "Select All"
                             )
-                            .font(
-                                .subheadline.weight(
-                                    .semibold
-                                )
-                            )
+                            .font(.subheadline.weight(.semibold))
 
                             Spacer()
                         }
                         .padding(.vertical, 7)
-                        .padding(.horizontal, 10)
-                        .background(
-                            Color.gray.opacity(0.10)
-                        )
-                        .clipShape(
-                            RoundedRectangle(
-                                cornerRadius: 9
-                            )
-                        )
                     }
                     .buttonStyle(.plain)
-
-                    if let infoPath =
-                        expandedExtensionInfo {
-                        Text(
-                            extensionTip(
-                                for:
-                                    extensionName(
-                                        from: infoPath
-                                    )
-                            )
-                        )
-                        .font(
-                            .caption2.weight(
-                                .regular
-                            )
-                        )
-                        .foregroundStyle(
-                            .secondary.opacity(0.86)
-                        )
-                        .fixedSize(
-                            horizontal: false,
-                            vertical: true
-                        )
-                        .padding(.vertical, 6)
-                        .padding(.horizontal, 9)
-                        .frame(
-                            maxWidth: .infinity,
-                            alignment: .leading
-                        )
-                        .background(
-                            Color.gray.opacity(0.075)
-                        )
-                        .clipShape(
-                            RoundedRectangle(
-                                cornerRadius: 8
-                            )
-                        )
-                        .transition(
-                            .opacity.combined(
-                                with:
-                                    .move(
-                                        edge: .top
-                                    )
-                            )
-                        )
-                    }
                 }
-                .padding(7)
-                .background(
-                    Color.gray.opacity(0.06)
-                )
-                .clipShape(
-                    RoundedRectangle(
-                        cornerRadius: 11
-                    )
-                )
+                .padding(9)
+                .background(Color.secondary.opacity(0.06))
+                .clipShape(RoundedRectangle(cornerRadius: 11))
             }
         }
     }
 
-    private func extensionRow(
-        _ path: String
-    ) -> some View {
+    private func extensionRow(_ path: String) -> some View {
         let isSelected =
             selectedExtensionsToRemove.contains(path)
 
@@ -819,36 +839,27 @@ struct ContentView: View {
         let name =
             extensionName(from: path)
 
-        return VStack(
-            alignment: .leading,
-            spacing: 6
-        ) {
+        return VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 0) {
+
                 Button {
-                    withAnimation(
-                        .easeInOut(duration: 0.18)
-                    ) {
+                    withAnimation(.easeInOut(duration: 0.18)) {
                         if isSelected {
-                            selectedExtensionsToRemove.remove(
-                                path
-                            )
+                            selectedExtensionsToRemove.remove(path)
                         } else {
-                            selectedExtensionsToRemove.insert(
-                                path
-                            )
+                            selectedExtensionsToRemove.insert(path)
                         }
 
                         clearStaleExportState()
                     }
                 } label: {
-                    HStack(spacing: 8) {
+                    HStack(spacing: 9) {
                         Image(
                             systemName:
                                 isSelected
                                 ? "checkmark.circle.fill"
                                 : "circle"
                         )
-                        .font(.body)
                         .foregroundStyle(
                             isSelected
                             ? Color.blue
@@ -858,117 +869,92 @@ struct ContentView: View {
                         Text(name)
                             .lineLimit(1)
                             .truncationMode(.middle)
-                            .foregroundStyle(
-                                Color.primary
-                            )
 
                         Spacer(minLength: 8)
                     }
-                    .frame(
-                        maxWidth: .infinity,
-                        alignment: .leading
-                    )
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
 
                 Button {
-                    guard !infoTapLocked else {
-                        return
-                    }
-
-                    infoTapLocked = true
-
-                    DispatchQueue.main.asyncAfter(
-                        deadline: .now() + 0.28
-                    ) {
-                        infoTapLocked = false
-                    }
-
-                    if isExpanded {
-                        infoAutoCloseToken = UUID()
-
-                        withAnimation(
-                            .easeInOut(duration: 0.18)
-                        ) {
-                            expandedExtensionInfo = nil
-                        }
-                    } else {
-                        let token = UUID()
-
-                        infoAutoCloseToken = token
-
-                        withAnimation(
-                            .easeInOut(duration: 0.18)
-                        ) {
-                            expandedExtensionInfo = path
-                        }
-
-                        DispatchQueue.main.asyncAfter(
-                            deadline: .now() + 10
-                        ) {
-                            if infoAutoCloseToken == token &&
-                                expandedExtensionInfo == path {
-                                withAnimation(
-                                    .easeInOut(
-                                        duration: 0.18
-                                    )
-                                ) {
-                                    expandedExtensionInfo = nil
-                                }
-                            }
-                        }
-                    }
+                    toggleExtensionInfo(path)
                 } label: {
-                    Image(
-                        systemName:
-                            "info.circle.fill"
-                    )
-                    .foregroundStyle(Color.blue)
-                    .frame(
-                        width: 40,
-                        height: 30
-                    )
-                    .contentShape(Rectangle())
+                    Image(systemName: "info.circle.fill")
+                        .foregroundStyle(.blue)
+                        .frame(width: 40, height: 30)
                 }
                 .buttonStyle(.plain)
+            }
+
+            if isExpanded {
+                Text(
+                    extensionTip(
+                        for: extensionName(from: path)
+                    )
+                )
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.secondary.opacity(0.07))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
             }
         }
         .font(.subheadline)
         .padding(.vertical, 5)
-        .padding(.leading, 10)
-        .padding(.trailing, 5)
+        .padding(.horizontal, 8)
         .background(
             isExpanded
-            ? Color.gray.opacity(0.14)
-            : Color.gray.opacity(0.10)
+            ? Color.blue.opacity(0.07)
+            : Color.secondary.opacity(0.06)
         )
-        .clipShape(
-            RoundedRectangle(
-                cornerRadius: 9
-            )
-        )
+        .clipShape(RoundedRectangle(cornerRadius: 9))
+    }
+
+    private func toggleExtensionInfo(_ path: String) {
+        guard !infoTapLocked else {
+            return
+        }
+
+        infoTapLocked = true
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.28) {
+            infoTapLocked = false
+        }
+
+        if expandedExtensionInfo == path {
+            infoAutoCloseToken = UUID()
+
+            withAnimation(.easeInOut(duration: 0.18)) {
+                expandedExtensionInfo = nil
+            }
+
+            return
+        }
+
+        let token = UUID()
+        infoAutoCloseToken = token
+
+        withAnimation(.easeInOut(duration: 0.18)) {
+            expandedExtensionInfo = path
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
+            if infoAutoCloseToken == token &&
+                expandedExtensionInfo == path {
+
+                withAnimation(.easeInOut(duration: 0.18)) {
+                    expandedExtensionInfo = nil
+                }
+            }
+        }
     }
 
     private func unloadIPA() {
         showShareSheet = false
 
-        if let temporaryInputURL {
-            try? FileManager.default.removeItem(
-                at: temporaryInputURL
-            )
-        }
-
-        if let exportURL {
-            try? FileManager.default.removeItem(
-                at: exportURL
-            )
-        }
-
         ipaURL = nil
-        temporaryInputURL = nil
-        exportURL = nil
-
         originalFileName = ""
         appInfoPlistPath = nil
 
@@ -991,45 +977,47 @@ struct ContentView: View {
         copiedBundleID = false
 
         exportSummary = ""
+        validationMessage = ""
 
         appVersion = ""
         appBuild = ""
 
         rewrittenExtensions = 0
 
+        exportURL = nil
+
+        isExporting = false
+        exportProgress = 0
+        exportProgressText = ""
+
         status = "Select an IPA to begin."
     }
 
-    private func handleSelectedFile(
-        _ selected: URL
-    ) {
+    private func handleSelectedFile(_ selected: URL) {
         do {
             originalFileName =
                 selected.lastPathComponent
 
             let temp =
-                FileManager.default
-                    .temporaryDirectory
+                FileManager.default.temporaryDirectory
                     .appendingPathComponent(
                         UUID().uuidString +
                         "-" +
                         selected.lastPathComponent
                     )
 
-            if FileManager.default
-                .fileExists(atPath: temp.path) {
-                try FileManager.default
-                    .removeItem(at: temp)
+            if FileManager.default.fileExists(
+                atPath: temp.path
+            ) {
+                try FileManager.default.removeItem(at: temp)
             }
 
             let didAccess =
-                selected
-                    .startAccessingSecurityScopedResource()
+                selected.startAccessingSecurityScopedResource()
 
             defer {
                 if didAccess {
-                    selected
-                        .stopAccessingSecurityScopedResource()
+                    selected.stopAccessingSecurityScopedResource()
                 }
             }
 
@@ -1038,28 +1026,12 @@ struct ContentView: View {
                 to: temp
             )
 
-            if let oldTemporaryInputURL =
-                temporaryInputURL {
-                try? FileManager.default
-                    .removeItem(
-                        at: oldTemporaryInputURL
-                    )
-            }
-
-            if let oldExportURL = exportURL {
-                try? FileManager.default
-                    .removeItem(
-                        at: oldExportURL
-                    )
-            }
-
             ipaURL = temp
-            temporaryInputURL = temp
             exportURL = nil
 
             rewrittenExtensions = 0
-
             selectedExtensionsToRemove = []
+
             extensionsExpanded = false
             expandedExtensionInfo = nil
             infoTapLocked = false
@@ -1071,9 +1043,7 @@ struct ContentView: View {
             duplicateMode = false
 
             let info =
-                try readBundleInfo(
-                    from: temp
-                )
+                try readBundleInfo(from: temp)
 
             appInfoPlistPath = info.path
             currentBundleID = info.id
@@ -1083,6 +1053,9 @@ struct ContentView: View {
             originalDisplayName = info.name
 
             foundExtensions = info.extensions
+
+            validationMessage =
+                validateBundleID(info.id)
 
             appVersion = info.version
             appBuild = info.build
@@ -1101,16 +1074,19 @@ struct ContentView: View {
         }
     }
 
+    private struct BundleInfo {
+        let path: String
+        let id: String
+        let version: String
+        let build: String
+        let name: String
+        let extensions: [String]
+    }
+
     private func readBundleInfo(
         from ipa: URL
-    ) throws -> (
-        path: String,
-        id: String,
-        version: String,
-        build: String,
-        name: String,
-        extensions: [String]
-    ) {
+    ) throws -> BundleInfo {
+
         guard let archive =
             Archive(
                 url: ipa,
@@ -1122,21 +1098,12 @@ struct ContentView: View {
         }
 
         guard let entry =
-            archive.first(
-                where: { entry in
-                    entry.path.hasPrefix(
-                        "Payload/"
-                    )
-                    &&
-                    entry.path.hasSuffix(
-                        ".app/Info.plist"
-                    )
-                    &&
-                    !entry.path.contains(
-                        ".appex/"
-                    )
-                }
-            ) else {
+            archive.first(where: { entry in
+
+                entry.path.hasPrefix("Payload/") &&
+                entry.path.hasSuffix(".app/Info.plist") &&
+                !entry.path.contains(".appex/")
+            }) else {
             throw SimpleError(
                 "Could not find Payload/*.app/Info.plist."
             )
@@ -1149,12 +1116,11 @@ struct ContentView: View {
             )
 
         let plist =
-            try PropertyListSerialization
-                .propertyList(
-                    from: data,
-                    options: [],
-                    format: nil
-                )
+            try PropertyListSerialization.propertyList(
+                from: data,
+                options: [],
+                format: nil
+            )
 
         guard let dict =
             plist as? [String: Any] else {
@@ -1171,553 +1137,355 @@ struct ContentView: View {
         }
 
         let version =
-            dict[
-                "CFBundleShortVersionString"
-            ] as? String ?? "Unknown"
+            dict["CFBundleShortVersionString"] as? String
+            ?? "Unknown"
 
         let build =
-            dict[
-                "CFBundleVersion"
-            ] as? String ?? "Unknown"
+            dict["CFBundleVersion"] as? String
+            ?? "Unknown"
 
         let name =
-            dict[
-                "CFBundleDisplayName"
-            ] as? String
+            dict["CFBundleDisplayName"] as? String
             ??
-            dict[
-                "CFBundleName"
-            ] as? String
+            dict["CFBundleName"] as? String
             ??
             ""
 
         let extensions =
             archive
-                .filter { entry in
-                    entry.path.hasPrefix(
-                        "Payload/"
-                    )
-                    &&
-                    entry.path.contains(
-                        ".app/"
-                    )
-                    &&
-                    entry.path.contains(
-                        ".appex/"
-                    )
-                    &&
-                    entry.path.hasSuffix(
-                        ".appex/Info.plist"
-                    )
+                .filter {
+                    $0.path.contains(".appex/Info.plist")
                 }
                 .map {
                     $0.path
                 }
 
-        return (
-            entry.path,
-            id,
-            version,
-            build,
-            name,
-            extensions
+        return BundleInfo(
+            path: entry.path,
+            id: id,
+            version: version,
+            build: build,
+            name: name,
+            extensions: extensions
         )
     }
 
     private func exportUpdatedIPA() {
-        var createdOutputURL: URL?
+        guard !isExporting else {
+            return
+        }
 
-        do {
-            guard let input = ipaURL else {
-                throw SimpleError(
-                    "No IPA selected."
-                )
+        isExporting = true
+        exportProgress = 0
+        exportProgressText = "Preparing archive…"
+        exportURL = nil
+        exportSummary = ""
+
+        let input = ipaURL
+        let targetPlist = appInfoPlistPath
+
+        let cleanID =
+            newBundleID.trimmingCharacters(
+                in: .whitespacesAndNewlines
+            )
+
+        let shouldRewriteBundleIDs =
+            bundleIDChanged
+
+        let didChangeName =
+            displayNameChanged
+
+        let removedExtensionCount =
+            selectedExtensionsToRemove.count
+
+        let selectedExtensionRoots =
+            selectedExtensionsToRemove.map {
+                extensionRoot(from: $0)
             }
 
-            guard let targetPlist =
-                appInfoPlistPath else {
-                throw SimpleError(
-                    "No Info.plist path found."
-                )
-            }
+        let cleanName =
+            displayName.trimmingCharacters(
+                in: .whitespacesAndNewlines
+            )
 
-            let cleanID =
-                newBundleID
-                    .trimmingCharacters(
-                        in: .whitespacesAndNewlines
-                    )
+        let originalName =
+            originalFileName
 
-            let validation =
-                validateBundleID(cleanID)
+        DispatchQueue.global(qos: .userInitiated).async {
 
-            guard validation.isEmpty else {
-                throw SimpleError(validation)
-            }
-
-            guard canExport else {
-                throw SimpleError(
-                    currentChangeMessage.isEmpty
-                    ? "Nothing changed."
-                    : currentChangeMessage
-                )
-            }
-
-            guard let inputArchive =
-                Archive(
-                    url: input,
-                    accessMode: .read
-                ) else {
-                throw SimpleError(
-                    "Could not reopen IPA."
-                )
-            }
-
-            let output =
-                makeReadableOutputURL(
-                    input: input
-                )
-
-            createdOutputURL = output
-
-            guard let outputArchive =
-                Archive(
-                    url: output,
-                    accessMode: .create
-                ) else {
-                throw SimpleError(
-                    "Could not create output IPA."
-                )
-            }
-
-            rewrittenExtensions = 0
-
-            let removedExtensionCount =
-                selectedExtensionsToRemove.count
-
-            let shouldRewriteBundleIDs =
-                bundleIDChanged
-
-            let didChangeName =
-                displayNameChanged
-
-            let selectedExtensionRoots =
-                selectedExtensionsToRemove.map {
-                    extensionRoot(from: $0)
+            do {
+                guard let input else {
+                    throw SimpleError("No IPA selected.")
                 }
 
-            let stagingDirectory =
-                FileManager.default
-                    .temporaryDirectory
-                    .appendingPathComponent(
-                        "IPAID-Staging-" +
-                        UUID().uuidString,
-                        isDirectory: true
+                guard let targetPlist else {
+                    throw SimpleError(
+                        "No Info.plist path found."
                     )
-
-            try FileManager.default
-                .createDirectory(
-                    at: stagingDirectory,
-                    withIntermediateDirectories: true,
-                    attributes: nil
-                )
-
-            defer {
-                try? FileManager.default
-                    .removeItem(
-                        at: stagingDirectory
-                    )
-            }
-
-            var entryIndex = 0
-
-            for entry in inputArchive {
-                entryIndex += 1
-
-                if entry.type == .directory {
-                    continue
                 }
 
-                if selectedExtensionRoots.contains(
-                    where: {
-                        entry.path.hasPrefix($0)
+                let validation =
+                    validateBundleID(cleanID)
+
+                guard validation.isEmpty else {
+                    throw SimpleError(validation)
+                }
+
+                guard let inputArchive =
+                    Archive(
+                        url: input,
+                        accessMode: .read
+                    ) else {
+                    throw SimpleError(
+                        "Could not reopen IPA."
+                    )
+                }
+
+                let entries =
+                    Array(inputArchive)
+
+                let files =
+                    entries.filter {
+                        $0.type != .directory
                     }
-                ) {
-                    continue
+
+                let output =
+                    makeReadableOutputURL(
+                        input: input,
+                        originalName: originalName
+                    )
+
+                guard let outputArchive =
+                    Archive(
+                        url: output,
+                        accessMode: .create
+                    ) else {
+                    throw SimpleError(
+                        "Could not create output IPA."
+                    )
                 }
 
-                let isMainInfoPlist =
-                    entry.path == targetPlist
+                var rewrittenCount = 0
+                var processed = 0
 
-                let isExtensionInfoPlist =
-                    entry.path.hasSuffix(
-                        "Info.plist"
-                    )
-                    &&
-                    entry.path.contains(
-                        ".appex/"
-                    )
+                for entry in files {
 
-                if isMainInfoPlist ||
-                    isExtensionInfoPlist {
+                    if selectedExtensionRoots.contains(
+                        where: {
+                            entry.path.hasPrefix($0)
+                        }
+                    ) {
+                        processed += 1
 
-                    let data =
+                        updateExportProgress(
+                            progress:
+                                Double(processed) /
+                                Double(max(files.count, 1)),
+                            text: "Removing extension…"
+                        )
+
+                        continue
+                    }
+
+                    var data =
                         try extractData(
                             entry: entry,
                             from: inputArchive
                         )
 
-                    let originalFormat =
-                        plistFormat(
-                            from: data
-                        )
+                    let isMainInfoPlist =
+                        entry.path == targetPlist
 
-                    let plist =
-                        try PropertyListSerialization
-                            .propertyList(
-                                from: data,
-                                options: [],
-                                format: nil
-                            )
+                    let isExtensionInfoPlist =
+                        entry.path.hasSuffix("Info.plist") &&
+                        entry.path.contains(".appex/")
 
-                    guard var dict =
-                        plist as? [String: Any] else {
-                        throw SimpleError(
-                            "Could not edit Info.plist."
-                        )
-                    }
+                    if isMainInfoPlist ||
+                        isExtensionInfoPlist {
 
-                    if isMainInfoPlist {
-                        dict["CFBundleIdentifier"] =
-                            cleanID
-
-                        let cleanName =
-                            displayName
-                                .trimmingCharacters(
-                                    in:
-                                        .whitespacesAndNewlines
+                        let plist =
+                            try PropertyListSerialization
+                                .propertyList(
+                                    from: data,
+                                    options: [],
+                                    format: nil
                                 )
 
-                        if !cleanName.isEmpty {
-                            dict["CFBundleDisplayName"] =
-                                cleanName
-
-                            dict["CFBundleName"] =
-                                cleanName
+                        guard var dict =
+                            plist as? [String: Any] else {
+                            throw SimpleError(
+                                "Could not edit Info.plist."
+                            )
                         }
 
-                    } else if
-                        shouldRewriteBundleIDs,
-                        let oldID =
-                            dict[
-                                "CFBundleIdentifier"
-                            ] as? String {
+                        if isMainInfoPlist {
 
-                        let rewrittenID =
-                            rewriteExtensionBundleID(
-                                oldID: oldID,
-                                oldParentID:
-                                    cleanCurrentBundleID,
-                                newParentID: cleanID
-                            )
+                            dict["CFBundleIdentifier"] =
+                                cleanID
 
-                        dict[
-                            "CFBundleIdentifier"
-                        ] = rewrittenID
+                            if !cleanName.isEmpty {
+                                dict["CFBundleDisplayName"] =
+                                    cleanName
 
-                        rewrittenExtensions += 1
-                    }
+                                dict["CFBundleName"] =
+                                    cleanName
+                            }
 
-                    let outputData =
-                        try PropertyListSerialization
-                            .data(
-                                fromPropertyList: dict,
-                                format: originalFormat,
-                                options: 0
-                            )
+                        } else if shouldRewriteBundleIDs {
 
-                    try addDataEntry(
-                        outputData,
-                        path: entry.path,
-                        to: outputArchive
-                    )
+                            if let oldID =
+                                dict["CFBundleIdentifier"]
+                                as? String {
 
-                } else {
-                    /*
-                     Streaming path:
+                                let lastComponent =
+                                    oldID
+                                        .split(
+                                            separator: "."
+                                        )
+                                        .last
+                                        ?? ""
 
-                     The archive entry is extracted directly
-                     to disk instead of being accumulated into
-                     a Data object. ZIPFoundation then reads
-                     that file while adding it to the output.
+                                dict["CFBundleIdentifier"] =
+                                    cleanID +
+                                    "." +
+                                    lastComponent
 
-                     This keeps large Mach-O binaries/resources
-                     out of RAM.
-                     */
+                                rewrittenCount += 1
+                            }
+                        }
 
-                    let stagedURL =
-                        stagingDirectory
-                            .appendingPathComponent(
-                                String(
-                                    format: "%08d",
-                                    entryIndex
+                        data =
+                            try PropertyListSerialization
+                                .data(
+                                    fromPropertyList: dict,
+                                    format: .xml,
+                                    options: 0
                                 )
-                            )
-
-                    try inputArchive.extract(
-                        entry,
-                        to: stagedURL
-                    )
-
-                    defer {
-                        try? FileManager.default
-                            .removeItem(
-                                at: stagedURL
-                            )
                     }
 
                     try outputArchive.addEntry(
                         with: entry.path,
-                        fileURL: stagedURL,
+                        type: .file,
+                        uncompressedSize:
+                            Int64(data.count),
                         compressionMethod: .deflate,
-                        bufferSize: 64 * 1024
+                        provider: {
+                            position,
+                            size -> Data in
+
+                            let start =
+                                Int(position)
+
+                            let end =
+                                min(
+                                    start + size,
+                                    data.count
+                                )
+
+                            guard start < end else {
+                                return Data()
+                            }
+
+                            return data.subdata(
+                                in: start..<end
+                            )
+                        }
+                    )
+
+                    processed += 1
+
+                    updateExportProgress(
+                        progress:
+                            Double(processed) /
+                            Double(max(files.count, 1)),
+                        text:
+                            "Compressing \(processed) of \(files.count)…"
                     )
                 }
-            }
 
-            exportURL = output
+                DispatchQueue.main.async {
 
-            exportSummary =
-                makeExportSummary(
-                    bundleIDChanged:
-                        shouldRewriteBundleIDs,
-                    displayNameChanged:
-                        didChangeName,
-                    removedExtensions:
-                        removedExtensionCount,
-                    rewrittenExtensions:
-                        rewrittenExtensions
-                )
+                    rewrittenExtensions =
+                        rewrittenCount
 
-            if let originalSize =
-                try? FileManager.default
-                    .attributesOfItem(
-                        atPath: input.path
-                    )[.size] as? NSNumber,
+                    exportURL = output
 
-               let outputSize =
-                try? FileManager.default
-                    .attributesOfItem(
-                        atPath: output.path
-                    )[.size] as? NSNumber {
+                    exportSummary =
+                        makeExportSummary(
+                            bundleIDChanged:
+                                shouldRewriteBundleIDs,
+                            displayNameChanged:
+                                didChangeName,
+                            removedExtensions:
+                                removedExtensionCount,
+                            rewrittenExtensions:
+                                rewrittenCount
+                        )
 
-                let originalMB =
-                    Double(
-                        truncating:
-                            originalSize
-                    ) / 1_048_576.0
+                    extensionsExpanded = false
+                    expandedExtensionInfo = nil
 
-                let outputMB =
-                    Double(
-                        truncating:
-                            outputSize
-                    ) / 1_048_576.0
+                    exportProgress = 1
+                    exportProgressText =
+                        "Export complete."
 
-                let difference =
-                    outputMB - originalMB
+                    isExporting = false
 
-                let percentage =
-                    originalMB > 0
-                    ? (difference / originalMB) * 100
-                    : 0
+                    status =
+                        "Export complete. Original file was not replaced."
 
-                let sizeText =
-                    String(
-                        format:
-                            "IPA size: %.1f MB → %.1f MB (%+.1f MB, %+.1f%%)",
-                        originalMB,
-                        outputMB,
-                        difference,
-                        percentage
-                    )
+                    UINotificationFeedbackGenerator()
+                        .notificationOccurred(.success)
+                }
 
-                if exportSummary.isEmpty {
-                    exportSummary = sizeText
-                } else {
-                    exportSummary +=
-                        "\n" + sizeText
+            } catch {
+
+                DispatchQueue.main.async {
+
+                    isExporting = false
+                    exportProgress = 0
+                    exportProgressText = ""
+
+                    exportSummary = ""
+
+                    status =
+                        "Export failed: \(error.localizedDescription)"
+
+                    UINotificationFeedbackGenerator()
+                        .notificationOccurred(.error)
                 }
             }
-
-            extensionsExpanded = false
-            expandedExtensionInfo = nil
-
-            UINotificationFeedbackGenerator()
-                .notificationOccurred(.success)
-
-            status =
-                "Export complete. Original file was not replaced."
-
-        } catch {
-            if let createdOutputURL {
-                try? FileManager.default
-                    .removeItem(
-                        at: createdOutputURL
-                    )
-            }
-
-            UINotificationFeedbackGenerator()
-                .notificationOccurred(.error)
-
-            exportSummary = ""
-
-            status =
-                "Export failed: " +
-                error.localizedDescription
         }
     }
 
-    private func addDataEntry(
-        _ data: Data,
-        path: String,
-        to archive: Archive
-    ) throws {
-        try archive.addEntry(
-            with: path,
-            type: .file,
-            uncompressedSize: Int64(data.count),
-            compressionMethod: .deflate,
-            bufferSize: 64 * 1024,
-            provider: { position, size in
-                let start = Int(position)
-                let end = start + size
+    private func updateExportProgress(
+        progress: Double,
+        text: String
+    ) {
+        DispatchQueue.main.async {
+            exportProgress =
+                min(max(progress, 0), 1)
 
-                guard start >= 0,
-                      end <= data.count else {
-                    return Data()
-                }
-
-                return data.subdata(
-                    in: start..<end
-                )
-            }
-        )
-    }
-
-    private func rewriteExtensionBundleID(
-        oldID: String,
-        oldParentID: String,
-        newParentID: String
-    ) -> String {
-
-        let oldPrefix =
-            oldParentID + "."
-
-        if oldID.hasPrefix(oldPrefix) {
-            let suffix =
-                String(
-                    oldID.dropFirst(
-                        oldPrefix.count
-                    )
-                )
-
-            if !suffix.isEmpty {
-                return newParentID + "." + suffix
-            }
-
-            return newParentID
+            exportProgressText = text
         }
-
-        /*
-         Some applications use extension IDs that
-         don't directly begin with the parent bundle ID.
-
-         In that case preserve the complete existing
-         extension identifier as a suffix rather than
-         arbitrarily throwing away everything except
-         the final component.
-         */
-
-        let oldComponents =
-            oldID.split(
-                separator: "."
-            )
-
-        guard let parentComponents =
-            oldParentID.split(
-                separator: "."
-            ).last else {
-            return newParentID
-        }
-
-        if let firstMatchingIndex =
-            oldComponents.firstIndex(
-                of: Substring(parentComponents)
-            ) {
-
-            let suffixStart =
-                oldComponents.index(
-                    after: firstMatchingIndex
-                )
-
-            if suffixStart < oldComponents.endIndex {
-                let suffix =
-                    oldComponents[
-                        suffixStart...
-                    ]
-                    .map(String.init)
-                    .joined(separator: ".")
-
-                if !suffix.isEmpty {
-                    return newParentID +
-                        "." +
-                        suffix
-                }
-            }
-        }
-
-        let fallbackSuffix =
-            oldComponents.last.map(
-                String.init
-            ) ?? "extension"
-
-        return newParentID +
-            "." +
-            fallbackSuffix
-    }
-
-    private func plistFormat(
-        from data: Data
-    ) -> PropertyListSerialization.PropertyListFormat {
-
-        var format =
-            PropertyListSerialization
-                .PropertyListFormat.xml
-
-        _ = try? PropertyListSerialization
-            .propertyList(
-                from: data,
-                options: [],
-                format: &format
-            )
-
-        return format
     }
 
     private func makeReadableOutputURL(
-        input: URL
+        input: URL,
+        originalName: String
     ) -> URL {
 
         let baseName: String
 
-        if !originalFileName.isEmpty {
+        if !originalName.isEmpty {
+
             baseName =
-                URL(
-                    fileURLWithPath:
-                        originalFileName
-                )
-                .deletingPathExtension()
-                .lastPathComponent
+                URL(fileURLWithPath: originalName)
+                    .deletingPathExtension()
+                    .lastPathComponent
+
         } else {
+
             baseName =
                 input
                     .deletingPathExtension()
@@ -1725,8 +1493,7 @@ struct ContentView: View {
         }
 
         let folder =
-            FileManager.default
-                .temporaryDirectory
+            FileManager.default.temporaryDirectory
 
         var version = 1
 
@@ -1735,10 +1502,9 @@ struct ContentView: View {
                 "\(baseName)-bid\(version).ipa"
             )
 
-        while FileManager.default
-            .fileExists(
-                atPath: candidate.path
-            ) {
+        while FileManager.default.fileExists(
+            atPath: candidate.path
+        ) {
 
             version += 1
 
@@ -1757,8 +1523,7 @@ struct ContentView: View {
 
         let clean =
             id.trimmingCharacters(
-                in:
-                    .whitespacesAndNewlines
+                in: .whitespacesAndNewlines
             )
 
         if clean.isEmpty {
@@ -1769,15 +1534,12 @@ struct ContentView: View {
             return "Bundle ID is too long."
         }
 
-        let components =
-            clean.split(
-                separator: ".",
-                omittingEmptySubsequences: false
-            )
+        if !clean.contains(".") {
+            return "Bundle ID must contain at least one dot."
+        }
 
-        if components.count < 2 {
-            return
-                "Bundle ID must contain at least one dot."
+        if clean.contains("..") {
+            return "Bundle ID cannot contain two dots in a row."
         }
 
         let allowed =
@@ -1785,27 +1547,19 @@ struct ContentView: View {
                 charactersIn:
                     "abcdefghijklmnopqrstuvwxyz" +
                     "ABCDEFGHIJKLMNOPQRSTUVWXYZ" +
-                    "0123456789-"
+                    "0123456789.-"
             )
 
-        for component in components {
-            if component.isEmpty {
-                return
-                    "Bundle ID cannot contain empty components."
-            }
+        if clean.rangeOfCharacter(
+            from: allowed.inverted
+        ) != nil {
+            return "Bundle ID contains invalid characters."
+        }
 
-            if component.hasPrefix("-") ||
-                component.hasSuffix("-") {
-                return
-                    "Bundle ID components cannot start or end with a hyphen."
-            }
+        if clean.hasPrefix(".") ||
+            clean.hasSuffix(".") {
 
-            if component.rangeOfCharacter(
-                from: allowed.inverted
-            ) != nil {
-                return
-                    "Bundle ID contains invalid characters."
-            }
+            return "Bundle ID cannot start or end with a dot."
         }
 
         return ""
@@ -1821,21 +1575,16 @@ struct ContentView: View {
         var changes: [String] = []
 
         if bundleIDChanged {
-            changes.append(
-                "Bundle ID changed"
-            )
+            changes.append("Bundle ID changed")
         }
 
         if displayNameChanged {
-            changes.append(
-                "Display name changed"
-            )
+            changes.append("Display name changed")
         }
 
         if removedExtensions == 1 {
-            changes.append(
-                "1 extension removed"
-            )
+            changes.append("1 extension removed")
+
         } else if removedExtensions > 1 {
             changes.append(
                 "\(removedExtensions) extensions removed"
@@ -1846,6 +1595,7 @@ struct ContentView: View {
             changes.append(
                 "1 extension ID rewritten"
             )
+
         } else if rewrittenExtensions > 1 {
             changes.append(
                 "\(rewrittenExtensions) extension IDs rewritten"
@@ -1857,23 +1607,17 @@ struct ContentView: View {
         }
 
         return "Applied: " +
-            changes.joined(
-                separator: " • "
-            )
+            changes.joined(separator: " • ")
     }
 
     private func clearStaleExportState() {
-        guard exportURL != nil ||
-                rewrittenExtensions != 0 ||
-                status.hasPrefix("Export") else {
-            return
-        }
 
-        if let exportURL {
-            try? FileManager.default
-                .removeItem(
-                    at: exportURL
-                )
+        guard
+            exportURL != nil ||
+            rewrittenExtensions != 0 ||
+            status.hasPrefix("Export")
+        else {
+            return
         }
 
         exportURL = nil
@@ -1916,9 +1660,7 @@ struct ContentView: View {
 
         let parts =
             path
-                .split(
-                    separator: "/"
-                )
+                .split(separator: "/")
                 .map(String.init)
 
         let rawName: String
@@ -1936,13 +1678,13 @@ struct ContentView: View {
                         of: ".appex",
                         with: ""
                     )
+
         } else {
+
             rawName =
-                URL(
-                    fileURLWithPath: path
-                )
-                .deletingPathExtension()
-                .lastPathComponent
+                URL(fileURLWithPath: path)
+                    .deletingPathExtension()
+                    .lastPathComponent
         }
 
         return humanReadableExtensionName(
@@ -1975,24 +1717,21 @@ struct ContentView: View {
             )
 
         var result = ""
-
-        var previousWasLowercaseOrNumber =
-            false
+        var previousWasLowercaseOrNumber = false
 
         for character in name {
+
             let scalar =
                 String(character)
 
             let isUppercase =
                 scalar.rangeOfCharacter(
-                    from:
-                        .uppercaseLetters
+                    from: .uppercaseLetters
                 ) != nil
 
             let isNumber =
                 scalar.rangeOfCharacter(
-                    from:
-                        .decimalDigits
+                    from: .decimalDigits
                 ) != nil
 
             if isUppercase &&
@@ -2006,8 +1745,7 @@ struct ContentView: View {
 
             previousWasLowercaseOrNumber =
                 scalar.rangeOfCharacter(
-                    from:
-                        .lowercaseLetters
+                    from: .lowercaseLetters
                 ) != nil ||
                 isNumber
         }
@@ -2019,8 +1757,7 @@ struct ContentView: View {
                     with: " "
                 )
                 .trimmingCharacters(
-                    in:
-                        .whitespacesAndNewlines
+                    in: .whitespacesAndNewlines
                 )
 
         return cleaned.isEmpty
@@ -2036,52 +1773,40 @@ struct ContentView: View {
             name.lowercased()
 
         if lower.contains("widget") {
-            return
-                "Adds Home Screen or Lock Screen widget support. Removing it disables that widget."
+            return "Adds Home Screen or Lock Screen widget support. Removing it disables that widget."
         }
 
         if lower.contains("intent") ||
             lower.contains("siri") {
-            return
-                "Handles Siri, Shortcuts, or App Intent actions. Removing it may disable automation features."
+
+            return "Handles Siri, Shortcuts, or App Intent actions. Removing it may disable automation features."
         }
 
-        if lower.contains(
-            "notification service"
-        ) {
-            return
-                "Handles enhanced notification content, images, or media. Removing it may make notifications more basic."
+        if lower.contains("notification service") {
+            return "Handles enhanced notification content, images, or media. Removing it may make notifications more basic."
         }
 
-        if lower.contains(
-            "notification content"
-        ) {
-            return
-                "Provides custom notification layouts. Removing it may disable rich notification views."
+        if lower.contains("notification content") {
+            return "Provides custom notification layouts. Removing it may disable rich notification views."
         }
 
         if lower.contains("notification") {
-            return
-                "Supports notification-related features. Removing it may affect alerts or notification previews."
+            return "Supports notification-related features. Removing it may affect alerts or notification previews."
         }
 
         if lower.contains("safari") {
-            return
-                "Adds Safari integration. Removing it may disable Safari extension features."
+            return "Adds Safari integration. Removing it may disable Safari extension features."
         }
 
         if lower.contains("share") {
-            return
-                "Adds Share Sheet integration. Removing it may stop the app appearing in share menus."
+            return "Adds Share Sheet integration. Removing it may stop the app appearing in share menus."
         }
 
         if lower.contains("watch") {
-            return
-                "Adds Apple Watch support. Removing it may disable watchOS companion features."
+            return "Adds Apple Watch support. Removing it may disable watchOS companion features."
         }
 
-        return
-            "App extension component. Removing it can reduce signing/App ID usage, but some app features may stop working."
+        return "App extension component. Removing it can reduce signing/App ID usage, but some app features may stop working."
     }
 
     private func extensionRoot(
@@ -2109,13 +1834,35 @@ struct ContentView: View {
 
         var data = Data()
 
-        _ = try archive.extract(
-            entry
-        ) { chunk in
+        _ = try archive.extract(entry) {
+            chunk in
             data.append(chunk)
         }
 
         return data
+    }
+}
+
+private extension View {
+    func cardStyle() -> some View {
+        self
+            .padding(15)
+            .frame(
+                maxWidth: .infinity,
+                alignment: .leading
+            )
+            .background(
+                Color(
+                    uiColor:
+                        .secondarySystemGroupedBackground
+                )
+            )
+            .clipShape(
+                RoundedRectangle(
+                    cornerRadius: 17,
+                    style: .continuous
+                )
+            )
     }
 }
 
@@ -2135,8 +1882,7 @@ struct ActivityView:
     }
 
     func updateUIViewController(
-        _ uiViewController:
-            UIActivityViewController,
+        _ uiViewController: UIActivityViewController,
         context: Context
     ) {}
 }
@@ -2169,8 +1915,7 @@ struct DocumentPicker:
     }
 
     func updateUIViewController(
-        _ uiViewController:
-            UIDocumentPickerViewController,
+        _ uiViewController: UIDocumentPickerViewController,
         context: Context
     ) {}
 
@@ -2187,10 +1932,10 @@ struct DocumentPicker:
         }
 
         func documentPicker(
-            _ controller:
-                UIDocumentPickerViewController,
+            _ controller: UIDocumentPickerViewController,
             didPickDocumentsAt urls: [URL]
         ) {
+
             guard let url = urls.first else {
                 return
             }
