@@ -762,131 +762,157 @@ struct ContentView: View {
     }
 
     private func exportUpdatedIPA() {
-        do {
-            guard let input = ipaURL else {
-                throw SimpleError("No IPA selected.")
+    do {
+        guard let input = ipaURL else {
+            throw SimpleError("No IPA selected.")
+        }
+
+        guard let targetPlist = appInfoPlistPath else {
+            throw SimpleError("No Info.plist path found.")
+        }
+
+        let cleanID = newBundleID.trimmingCharacters(in: .whitespacesAndNewlines)
+        let validation = validateBundleID(cleanID)
+
+        guard validation.isEmpty else {
+            throw SimpleError(validation)
+        }
+
+        guard canExport else {
+            throw SimpleError(
+                currentChangeMessage.isEmpty
+                    ? "Nothing changed."
+                    : currentChangeMessage
+            )
+        }
+
+        guard let inputArchive = Archive(url: input, accessMode: .read) else {
+            throw SimpleError("Could not reopen IPA.")
+        }
+
+        let output = makeReadableOutputURL(input: input)
+
+        guard let outputArchive = Archive(
+            url: output,
+            accessMode: .create
+        ) else {
+            throw SimpleError("Could not create output IPA.")
+        }
+
+        rewrittenExtensions = 0
+
+        let removedExtensionCount = selectedExtensionsToRemove.count
+        let shouldRewriteBundleIDs = bundleIDChanged
+        let didChangeName = displayNameChanged
+
+        let selectedExtensionRoots = selectedExtensionsToRemove.map {
+            extensionRoot(from: $0)
+        }
+
+        for entry in inputArchive {
+            if entry.type == .directory {
+                continue
             }
 
-            guard let targetPlist = appInfoPlistPath else {
-                throw SimpleError("No Info.plist path found.")
+            if selectedExtensionRoots.contains(where: {
+                entry.path.hasPrefix($0)
+            }) {
+                continue
             }
 
-            let cleanID = newBundleID.trimmingCharacters(in: .whitespacesAndNewlines)
-            let validation = validateBundleID(cleanID)
+            var data = try extractData(
+                entry: entry,
+                from: inputArchive
+            )
 
-            guard validation.isEmpty else {
-                throw SimpleError(validation)
-            }
+            let isMainInfoPlist = entry.path == targetPlist
 
-            guard canExport else {
-                throw SimpleError(currentChangeMessage.isEmpty ? "Nothing changed." : currentChangeMessage)
-            }
+            let isExtensionInfoPlist =
+                entry.path.hasSuffix("Info.plist")
+                && entry.path.contains(".appex/")
 
-            guard let inputArchive = Archive(url: input, accessMode: .read) else {
-                throw SimpleError("Could not reopen IPA.")
-            }
+            if isMainInfoPlist || isExtensionInfoPlist {
+                let plist = try PropertyListSerialization.propertyList(
+                    from: data,
+                    options: [],
+                    format: nil
+                )
 
-            let output = makeReadableOutputURL(input: input)
-
-            guard let outputArchive = Archive(url: output, accessMode: .create) else {
-                throw SimpleError("Could not create output IPA.")
-            }
-
-            rewrittenExtensions = 0
-            let removedExtensionCount = selectedExtensionsToRemove.count
-            let shouldRewriteBundleIDs = bundleIDChanged
-            let didChangeName = displayNameChanged
-            let selectedExtensionRoots = selectedExtensionsToRemove.map { extensionRoot(from: $0) }
-
-            for entry in inputArchive {
-                if entry.type == .directory {
-                    continue
+                guard var dict = plist as? [String: Any] else {
+                    throw SimpleError("Could not edit Info.plist.")
                 }
 
-                if selectedExtensionRoots.contains(where: { entry.path.hasPrefix($0) }) {
-                    continue
-                }
-
-                var data = try extractData(entry: entry, from: inputArchive)
-
-                let isMainInfoPlist = entry.path == targetPlist
-
-                let isExtensionInfoPlist =
-                    entry.path.hasSuffix("Info.plist")
-                    && entry.path.contains(".appex/")
-
-                if isMainInfoPlist || isExtensionInfoPlist {
-                    let plist = try PropertyListSerialization.propertyList(
-                        from: data,
-                        options: [],
-                        format: nil
-                    )
-
-                    guard var dict = plist as? [String: Any] else {
-                        throw SimpleError("Could not edit Info.plist.")
-                    }
-
-                    if let oldID = dict["CFBundleIdentifier"] as? String {
-                        if isMainInfoPlist {
-                            dict["CFBundleIdentifier"] = cleanID
-                        } else if shouldRewriteBundleIDs {
-                            let lastComponent = oldID.split(separator: ".").last ?? ""
-                            dict["CFBundleIdentifier"] = cleanID + "." + lastComponent
-                            rewrittenExtensions += 1
-                        }
-                    }
-
+                if let oldID = dict["CFBundleIdentifier"] as? String {
                     if isMainInfoPlist {
-                        let cleanName = displayName
-                            .trimmingCharacters(in: .whitespacesAndNewlines)
+                        dict["CFBundleIdentifier"] = cleanID
+                    } else if shouldRewriteBundleIDs {
+                        let lastComponent =
+                            oldID.split(separator: ".").last ?? ""
 
-                        if !cleanName.isEmpty {
-                            dict["CFBundleDisplayName"] = cleanName
-                            dict["CFBundleName"] = cleanName
-                        }
+                        dict["CFBundleIdentifier"] =
+                            cleanID + "." + lastComponent
+
+                        rewrittenExtensions += 1
                     }
-
-                    data = try PropertyListSerialization.data(
-                        fromPropertyList: dict,
-                        format: .xml,
-                        options: 0
-                    )
                 }
 
-                try outputArchive.addEntry(
-                    with: entry.path,
-                    type: .file,
-                    uncompressedSize: UInt32(data.count),
-                    provider: { position, size -> Data in
-                        data.subdata(in: Int(position)..<Int(position) + size)
+                if isMainInfoPlist {
+                    let cleanName = displayName
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+
+                    if !cleanName.isEmpty {
+                        dict["CFBundleDisplayName"] = cleanName
+                        dict["CFBundleName"] = cleanName
                     }
+                }
+
+                data = try PropertyListSerialization.data(
+                    fromPropertyList: dict,
+                    format: .xml,
+                    options: 0
                 )
             }
 
-            exportURL = output
-            exportSummary = makeExportSummary(
-                bundleIDChanged: shouldRewriteBundleIDs,
-                displayNameChanged: didChangeName,
-                removedExtensions: removedExtensionCount,
-                rewrittenExtensions: rewrittenExtensions
+            try outputArchive.addEntry(
+                with: entry.path,
+                type: .file,
+                uncompressedSize: Int64(data.count),
+                compressionMethod: .deflate,
+                provider: { position, size -> Data in
+                    let start = Int(position)
+                    let end = start + size
+
+                    return data.subdata(in: start..<end)
+                }
             )
-            extensionsExpanded = false
-            expandedExtensionInfo = nil
-
-            UINotificationFeedbackGenerator()
-                .notificationOccurred(.success)
-
-            status = "Export complete. Original file was not replaced."
-
-        } catch {
-            UINotificationFeedbackGenerator()
-                .notificationOccurred(.error)
-
-            exportSummary = ""
-            status = "Export failed: \(error.localizedDescription)"
         }
-    }
 
+        exportURL = output
+
+        exportSummary = makeExportSummary(
+            bundleIDChanged: shouldRewriteBundleIDs,
+            displayNameChanged: didChangeName,
+            removedExtensions: removedExtensionCount,
+            rewrittenExtensions: rewrittenExtensions
+        )
+
+        extensionsExpanded = false
+        expandedExtensionInfo = nil
+
+        UINotificationFeedbackGenerator()
+            .notificationOccurred(.success)
+
+        status = "Export complete. Original file was not replaced."
+
+    } catch {
+        UINotificationFeedbackGenerator()
+            .notificationOccurred(.error)
+
+        exportSummary = ""
+        status = "Export failed: \(error.localizedDescription)"
+    }
+}
+    
     private func makeReadableOutputURL(input: URL) -> URL {
         let baseName: String
 
