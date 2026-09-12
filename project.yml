@@ -28,12 +28,12 @@ targets:
       INFOPLIST_FILE: App/Info.plist
       SWIFT_VERSION: 5.0
       CURRENT_PROJECT_VERSION: 111
-      MARKETING_VERSION: 1.1.1
+      MARKETING_VERSION: 1.2
 
     info:
       path: App/Info.plist
       properties:
-        CFBundleShortVersionString: "1.1.1"
+        CFBundleShortVersionString: "1.2"
         CFBundleVersion: "111"
         UILaunchScreen: {}
         UIApplicationSceneManifest:
