@@ -49,6 +49,7 @@ struct ContentView: View {
     @State private var exportFileName = ""
     @State private var inputFileSize: Int64 = 0
     @State private var outputFileSize: Int64 = 0
+    @State private var lastExportSignature: String?
 
     @State private var isExporting = false
     @State private var exportProgress: Double = 0
@@ -95,8 +96,22 @@ struct ContentView: View {
         !selectedExtensionsToRemove.isEmpty
     }
 
+    private var currentSettingsSignature: String {
+        let extensions = selectedExtensionsToRemove.sorted().joined(separator: "\u{1F}")
+        return [
+            cleanNewBundleID,
+            cleanDisplayName,
+            cleanURLScheme,
+            extensions
+        ].joined(separator: "\u{1E}")
+    }
+
     private var hasPendingChanges: Bool {
-        bundleIDChanged ||
+        if let lastExportSignature, exportURL != nil {
+            return currentSettingsSignature != lastExportSignature
+        }
+
+        return bundleIDChanged ||
         displayNameChanged ||
         urlSchemeChanged ||
         extensionRemovalChanged
@@ -274,7 +289,7 @@ struct ContentView: View {
 
                 Spacer()
 
-                Text("1.2")
+                Text("v1.2")
                     .font(.caption.weight(.bold))
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 9)
@@ -357,7 +372,9 @@ struct ContentView: View {
 
             extensionCard
 
-            validationCard
+            if exportURL == nil || hasPendingChanges || isExporting {
+                validationCard
+            }
 
             exportCard
         }
@@ -661,9 +678,6 @@ struct ContentView: View {
                     clearStaleExportState()
                 }
 
-                Text(originalURLScheme.isEmpty ? "Add a custom URL scheme, e.g. myapp." : "Change the scheme used by the app's custom links.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
         }
         .cardStyle()
@@ -767,7 +781,7 @@ struct ContentView: View {
 
     private func outputSection(_ url: URL) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            sectionTitle(icon: "checkmark.circle.fill", title: "Export Ready")
+            sectionTitle(icon: "checkmark.circle.fill", title: "Exported IPA")
 
             Text("Export complete.")
                 .font(.subheadline.weight(.semibold))
@@ -809,9 +823,10 @@ struct ContentView: View {
             }
             .buttonStyle(.bordered)
 
-            VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 18) {
                 Text("Before: \(formattedFileSize(inputFileSize))")
                 Text("After: \(formattedFileSize(outputFileSize))")
+                Spacer(minLength: 0)
             }
             .font(.caption)
             .foregroundStyle(.secondary)
@@ -1090,6 +1105,7 @@ struct ContentView: View {
         exportFileName = ""
         inputFileSize = 0
         outputFileSize = 0
+        lastExportSignature = nil
 
         isExporting = false
         exportProgress = 0
@@ -1136,6 +1152,7 @@ struct ContentView: View {
             exportFileName = ""
             inputFileSize = 0
             outputFileSize = 0
+            lastExportSignature = nil
 
             rewrittenExtensions = 0
             selectedExtensionsToRemove = []
@@ -1338,6 +1355,8 @@ struct ContentView: View {
 
         let originalName =
             originalFileName
+
+        let settingsSignature = currentSettingsSignature
 
         DispatchQueue.global(qos: .userInitiated).async {
 
@@ -1549,6 +1568,7 @@ struct ContentView: View {
                     exportFileName = output.lastPathComponent
                     inputFileSize = fileSize(of: input)
                     outputFileSize = fileSize(of: output)
+                    lastExportSignature = settingsSignature
 
                     exportSummary =
                         makeExportSummary(
