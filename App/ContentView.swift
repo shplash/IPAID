@@ -17,9 +17,11 @@ struct ContentView: View {
 
     @State private var displayName = ""
     @State private var originalDisplayName = ""
+    @State private var displayNameExpanded = false
 
     @State private var originalURLScheme = ""
     @State private var newURLScheme = ""
+    @State private var urlSchemeExpanded = false
 
     @State private var duplicateMode = false
 
@@ -44,6 +46,9 @@ struct ContentView: View {
 
     @State private var status = "Select an IPA to begin."
     @State private var exportURL: URL?
+    @State private var exportFileName = ""
+    @State private var inputFileSize: Int64 = 0
+    @State private var outputFileSize: Int64 = 0
 
     @State private var isExporting = false
     @State private var exportProgress: Double = 0
@@ -78,16 +83,12 @@ struct ContentView: View {
         cleanDisplayName != cleanOriginalDisplayName
     }
 
-    private var cleanNewURLScheme: String {
+    private var cleanURLScheme: String {
         newURLScheme.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    private var cleanOriginalURLScheme: String {
-        originalURLScheme.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
     private var urlSchemeChanged: Bool {
-        cleanNewURLScheme != cleanOriginalURLScheme
+        cleanURLScheme != originalURLScheme.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private var extensionRemovalChanged: Bool {
@@ -135,7 +136,7 @@ struct ContentView: View {
             return .red
         }
 
-        if !validateURLScheme(cleanNewURLScheme).isEmpty {
+        if !validateURLScheme(cleanURLScheme).isEmpty {
             return .red
         }
 
@@ -193,21 +194,20 @@ struct ContentView: View {
             return "Display name is too long."
         }
 
-        let schemeError = validateURLScheme(cleanNewURLScheme)
+        let schemeError = validateURLScheme(cleanURLScheme)
         if !schemeError.isEmpty {
             return schemeError
         }
 
         if !hasPendingChanges {
+            if exportURL != nil {
+                return "Export complete — no changes detected."
+            }
             return "No changes detected."
         }
 
-        if !bundleIDChanged {
+        if !bundleIDChanged && !displayNameChanged && !urlSchemeChanged {
             return "Bundle ID unchanged — app may replace the original install."
-        }
-
-        if urlSchemeChanged {
-            return "URL scheme changed — links using the original scheme will no longer open this copy."
         }
 
         if extensionRemovalChanged {
@@ -274,7 +274,7 @@ struct ContentView: View {
 
                 Spacer()
 
-                Text("v1.2")
+                Text("1.2")
                     .font(.caption.weight(.bold))
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 9)
@@ -351,11 +351,11 @@ struct ContentView: View {
 
             bundleIDCard
 
+            displayNameCard
+
             urlSchemeCard
 
             extensionCard
-
-            displayNameCard
 
             validationCard
 
@@ -526,97 +526,6 @@ struct ContentView: View {
         .cardStyle()
     }
 
-    private var urlSchemeCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-
-            sectionTitle(
-                icon: "link",
-                title: "URL Scheme"
-            )
-
-            HStack(spacing: 8) {
-                Text(
-                    cleanOriginalURLScheme.isEmpty
-                    ? "None"
-                    : cleanOriginalURLScheme
-                )
-                .font(.system(.body, design: .monospaced))
-                .lineLimit(1)
-                .truncationMode(.middle)
-
-                Spacer()
-
-                if !cleanOriginalURLScheme.isEmpty {
-                    Button {
-                        UIPasteboard.general.string = cleanOriginalURLScheme
-                    } label: {
-                        Image(systemName: "doc.on.doc")
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .foregroundStyle(.secondary)
-
-            Divider()
-
-            Text(
-                cleanOriginalURLScheme.isEmpty
-                ? "Add URL Scheme"
-                : "New URL Scheme"
-            )
-            .font(.subheadline.weight(.semibold))
-
-            HStack(spacing: 8) {
-                TextField(
-                    "example",
-                    text: $newURLScheme
-                )
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .font(.system(.body, design: .monospaced))
-                .lineLimit(1)
-
-                if !newURLScheme.isEmpty {
-                    Button {
-                        newURLScheme = cleanOriginalURLScheme
-                        clearStaleExportState()
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                }
-
-                Button {
-                    if let paste = UIPasteboard.general.string {
-                        newURLScheme = paste
-                        clearStaleExportState()
-                    }
-                } label: {
-                    Image(systemName: "doc.on.clipboard")
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-            }
-            .padding(.horizontal, 13)
-            .padding(.vertical, 12)
-            .background(Color.secondary.opacity(0.08))
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-            .onChange(of: newURLScheme) { _ in
-                clearStaleExportState()
-            }
-
-            Text("Used when opening links like \(cleanNewURLScheme.isEmpty ? "example://…" : cleanNewURLScheme + "://…")")
-                .font(.caption)
-                .foregroundStyle(
-                    validateURLScheme(cleanNewURLScheme).isEmpty
-                    ? .secondary
-                    : Color.red
-                )
-        }
-        .cardStyle()
-    }
-
     private var extensionCard: some View {
         Group {
             if !foundExtensions.isEmpty {
@@ -628,59 +537,133 @@ struct ContentView: View {
 
     private var displayNameCard: some View {
         VStack(alignment: .leading, spacing: 12) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    displayNameExpanded.toggle()
+                }
+            } label: {
+                HStack {
+                    Image(systemName: "textformat")
+                        .foregroundStyle(.blue)
 
-            sectionTitle(
-                icon: "textformat",
-                title: "Display Name"
-            )
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Display Name")
+                            .font(.headline.weight(.bold))
+                        Text(cleanDisplayName.isEmpty ? "No name" : cleanDisplayName)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
 
-            HStack(spacing: 8) {
-                TextField(
-                    "App name",
-                    text: $displayName
-                )
-                .lineLimit(1)
+                    Spacer()
+                    Image(systemName: displayNameExpanded ? "chevron.up" : "chevron.down")
+                        .font(.caption.bold())
+                }
+                .foregroundStyle(.primary)
+            }
+            .buttonStyle(.plain)
 
-                if !displayName.isEmpty {
+            if displayNameExpanded {
+                HStack(spacing: 8) {
+                    TextField("App name", text: $displayName)
+                        .lineLimit(1)
+
+                    if !displayName.isEmpty {
+                        Button {
+                            displayName = ""
+                            clearStaleExportState()
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+
                     Button {
-                        displayName = ""
-                        clearStaleExportState()
+                        if let paste = UIPasteboard.general.string {
+                            displayName = paste
+                            clearStaleExportState()
+                        }
                     } label: {
-                        Image(systemName: "xmark.circle.fill")
+                        Image(systemName: "doc.on.clipboard")
                             .foregroundStyle(.secondary)
                     }
                     .buttonStyle(.plain)
                 }
-
-                Button {
-                    if let paste = UIPasteboard.general.string {
-                        displayName = paste
-                        clearStaleExportState()
-                    }
-                } label: {
-                    Image(systemName: "doc.on.clipboard")
-                        .foregroundStyle(.secondary)
+                .padding(.horizontal, 13)
+                .padding(.vertical, 12)
+                .background(Color.secondary.opacity(0.08))
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .onChange(of: displayName) { _ in
+                    clearStaleExportState()
                 }
-                .buttonStyle(.plain)
-            }
-            .padding(.horizontal, 13)
-            .padding(.vertical, 12)
-            .background(Color.secondary.opacity(0.08))
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-            .onChange(of: displayName) { _ in
-                clearStaleExportState()
-            }
 
-            HStack {
                 Text("\(cleanDisplayName.count)/30 characters")
                     .font(.caption)
-                    .foregroundStyle(
-                        cleanDisplayName.count > 30
-                        ? .red
-                        : .secondary
-                    )
+                    .foregroundStyle(cleanDisplayName.count > 30 ? .red : .secondary)
+            }
+        }
+        .cardStyle()
+    }
 
-                Spacer()
+    private var urlSchemeCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    urlSchemeExpanded.toggle()
+                }
+            } label: {
+                HStack {
+                    Image(systemName: "link")
+                        .foregroundStyle(.blue)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("URL Scheme")
+                            .font(.headline.weight(.bold))
+                        Text(cleanURLScheme.isEmpty ? "None" : cleanURLScheme)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+
+                    Spacer()
+                    Image(systemName: urlSchemeExpanded ? "chevron.up" : "chevron.down")
+                        .font(.caption.bold())
+                }
+                .foregroundStyle(.primary)
+            }
+            .buttonStyle(.plain)
+
+            if urlSchemeExpanded {
+                HStack(spacing: 8) {
+                    TextField("myapp", text: $newURLScheme)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .font(.system(.body, design: .monospaced))
+                        .lineLimit(1)
+
+                    if !newURLScheme.isEmpty {
+                        Button {
+                            newURLScheme = ""
+                            clearStaleExportState()
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 13)
+                .padding(.vertical, 12)
+                .background(Color.secondary.opacity(0.08))
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .onChange(of: newURLScheme) { _ in
+                    clearStaleExportState()
+                }
+
+                Text(originalURLScheme.isEmpty ? "Add a custom URL scheme." : "Change the scheme used by the app's custom links.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
         .cardStyle()
@@ -758,7 +741,9 @@ struct ContentView: View {
                     Text(
                         isExporting
                         ? "Exporting…"
-                        : "Export Updated IPA"
+                        : (exportURL != nil && !hasPendingChanges
+                           ? "Already Exported"
+                           : "Export Updated IPA")
                     )
                     .font(.headline)
 
@@ -782,16 +767,41 @@ struct ContentView: View {
 
     private func outputSection(_ url: URL) -> some View {
         VStack(alignment: .leading, spacing: 12) {
+            sectionTitle(icon: "checkmark.circle.fill", title: "Export Ready")
 
-            sectionTitle(
-                icon: "checkmark.circle.fill",
-                title: "Export Ready"
-            )
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Export complete.")
+                    .font(.subheadline.weight(.semibold))
+
+                Text("Before: \(formattedFileSize(inputFileSize))")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Text("After: \(formattedFileSize(outputFileSize))")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            HStack(spacing: 8) {
+                TextField("Exported filename", text: $exportFileName)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .lineLimit(1)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .background(Color.secondary.opacity(0.08))
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+
+                Button("Rename") {
+                    renameExportedIPA()
+                }
+                .buttonStyle(.bordered)
+                .disabled(exportFileName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
 
             Button {
                 UIPasteboard.general.string = url.lastPathComponent
                 copiedFilename = true
-
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) {
                     copiedFilename = false
                 }
@@ -799,20 +809,12 @@ struct ContentView: View {
                 HStack(spacing: 10) {
                     Image(systemName: "doc.zipper")
                         .foregroundStyle(.blue)
-
                     Text(url.lastPathComponent)
                         .font(.callout)
                         .lineLimit(1)
                         .truncationMode(.middle)
-
                     Spacer()
-
-                    Image(
-                        systemName:
-                            copiedFilename
-                            ? "checkmark"
-                            : "doc.on.doc"
-                    )
+                    Image(systemName: copiedFilename ? "checkmark" : "doc.on.doc")
                 }
                 .foregroundStyle(.primary)
             }
@@ -821,11 +823,8 @@ struct ContentView: View {
             Button {
                 showShareSheet = true
             } label: {
-                Label(
-                    "Save / Share IPA",
-                    systemImage: "square.and.arrow.up"
-                )
-                .frame(maxWidth: .infinity)
+                Label("Save / Share IPA", systemImage: "square.and.arrow.up")
+                    .frame(maxWidth: .infinity)
             }
             .buttonStyle(.bordered)
 
@@ -877,7 +876,9 @@ struct ContentView: View {
                             .font(.headline.weight(.semibold))
 
                         Text(
-                            "\(selectedExtensionsToRemove.count) of \(foundExtensions.count) selected"
+                            selectedExtensionsToRemove.isEmpty
+                            ? "All \(foundExtensions.count) enabled"
+                            : "\(foundExtensions.count - selectedExtensionsToRemove.count) of \(foundExtensions.count) enabled"
                         )
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -910,13 +911,7 @@ struct ContentView: View {
 
                     Button {
                         withAnimation(.easeInOut(duration: 0.2)) {
-                            if selectedExtensionsToRemove.count ==
-                                foundExtensions.count {
-                                selectedExtensionsToRemove = []
-                            } else {
-                                selectedExtensionsToRemove =
-                                    Set(foundExtensions)
-                            }
+                            selectedExtensionsToRemove = []
 
                             clearStaleExportState()
                         }
@@ -924,17 +919,15 @@ struct ContentView: View {
                         HStack {
                             Image(
                                 systemName:
-                                    selectedExtensionsToRemove.count ==
-                                    foundExtensions.count
+                                    selectedExtensionsToRemove.isEmpty
                                     ? "checkmark.circle.fill"
                                     : "circle"
                             )
 
                             Text(
-                                selectedExtensionsToRemove.count ==
-                                foundExtensions.count
-                                ? "Deselect All"
-                                : "Select All"
+                                selectedExtensionsToRemove.isEmpty
+                                ? "All Enabled"
+                                : "Enable All"
                             )
                             .font(.subheadline.weight(.semibold))
 
@@ -979,13 +972,13 @@ struct ContentView: View {
                         Image(
                             systemName:
                                 isSelected
-                                ? "checkmark.circle.fill"
-                                : "circle"
+                                ? "circle"
+                                : "checkmark.circle.fill"
                         )
                         .foregroundStyle(
                             isSelected
-                            ? Color.blue
-                            : Color.secondary
+                            ? Color.secondary
+                            : Color.blue
                         )
 
                         Text(name)
@@ -1085,9 +1078,11 @@ struct ContentView: View {
 
         displayName = ""
         originalDisplayName = ""
+        displayNameExpanded = false
 
         originalURLScheme = ""
         newURLScheme = ""
+        urlSchemeExpanded = false
 
         duplicateMode = false
 
@@ -1110,6 +1105,9 @@ struct ContentView: View {
         rewrittenExtensions = 0
 
         exportURL = nil
+        exportFileName = ""
+        inputFileSize = 0
+        outputFileSize = 0
 
         isExporting = false
         exportProgress = 0
@@ -1153,6 +1151,9 @@ struct ContentView: View {
 
             ipaURL = temp
             exportURL = nil
+            exportFileName = ""
+            inputFileSize = 0
+            outputFileSize = 0
 
             rewrittenExtensions = 0
             selectedExtensionsToRemove = []
@@ -1176,9 +1177,11 @@ struct ContentView: View {
 
             displayName = info.name
             originalDisplayName = info.name
+            displayNameExpanded = false
 
             originalURLScheme = info.urlScheme
             newURLScheme = info.urlScheme
+            urlSchemeExpanded = false
 
             foundExtensions = info.extensions
 
@@ -1280,21 +1283,7 @@ struct ContentView: View {
             ??
             ""
 
-        let urlScheme: String = {
-            guard let urlTypes = dict["CFBundleURLTypes"] as? [[String: Any]] else {
-                return ""
-            }
-
-            for urlType in urlTypes {
-                if let schemes = urlType["CFBundleURLSchemes"] as? [String],
-                   let first = schemes.first,
-                   !first.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    return first
-                }
-            }
-
-            return ""
-        }()
+        let urlScheme = firstURLScheme(from: dict)
 
         let extensions =
             archive
@@ -1327,6 +1316,11 @@ struct ContentView: View {
         exportURL = nil
         exportSummary = ""
 
+        if let input = ipaURL {
+            inputFileSize = fileSize(of: input)
+        }
+        outputFileSize = 0
+
         let input = ipaURL
         let targetPlist = appInfoPlistPath
 
@@ -1345,7 +1339,7 @@ struct ContentView: View {
             urlSchemeChanged
 
         let cleanScheme =
-            cleanNewURLScheme
+            cleanURLScheme
 
         let removedExtensionCount =
             selectedExtensionsToRemove.count
@@ -1364,7 +1358,6 @@ struct ContentView: View {
             originalFileName
 
         DispatchQueue.global(qos: .userInitiated).async {
-            var temporaryDirectory: URL?
 
             do {
                 guard let input else {
@@ -1384,9 +1377,7 @@ struct ContentView: View {
                     throw SimpleError(validation)
                 }
 
-                let schemeValidation =
-                    validateURLScheme(cleanScheme)
-
+                let schemeValidation = validateURLScheme(cleanScheme)
                 guard schemeValidation.isEmpty else {
                     throw SimpleError(schemeValidation)
                 }
@@ -1425,24 +1416,11 @@ struct ContentView: View {
                     )
                 }
 
-                let tempDirectory =
-                    FileManager.default.temporaryDirectory
-                        .appendingPathComponent(
-                            "IPAID-\(UUID().uuidString)",
-                            isDirectory: true
-                        )
-
-                try FileManager.default.createDirectory(
-                    at: tempDirectory,
-                    withIntermediateDirectories: true
-                )
-
-                temporaryDirectory = tempDirectory
-
                 var rewrittenCount = 0
                 var processed = 0
 
                 for entry in files {
+
                     if selectedExtensionRoots.contains(
                         where: {
                             entry.path.hasPrefix($0)
@@ -1460,34 +1438,11 @@ struct ContentView: View {
                         continue
                     }
 
-                    let tempFile =
-                        tempDirectory.appendingPathComponent(
-                            "\(UUID().uuidString).bin"
+                    var data =
+                        try extractData(
+                            entry: entry,
+                            from: inputArchive
                         )
-
-                    // Extract directly to disk so large app binaries are
-                    // never loaded into memory as one Data object.
-                    FileManager.default.createFile(
-                        atPath: tempFile.path,
-                        contents: nil
-                    )
-
-                    let writer =
-                        try FileHandle(
-                            forWritingTo: tempFile
-                        )
-
-                    defer {
-                        try? writer.close()
-                    }
-
-                    _ = try inputArchive.extract(entry) {
-                        chunk in
-                        try writer.write(contentsOf: chunk)
-                    }
-
-                    var outputSize =
-                        Int64(entry.uncompressedSize)
 
                     let isMainInfoPlist =
                         entry.path == targetPlist
@@ -1498,9 +1453,6 @@ struct ContentView: View {
 
                     if isMainInfoPlist ||
                         isExtensionInfoPlist {
-
-                        let data =
-                            try Data(contentsOf: tempFile)
 
                         let plist =
                             try PropertyListSerialization
@@ -1518,6 +1470,7 @@ struct ContentView: View {
                         }
 
                         if isMainInfoPlist {
+
                             dict["CFBundleIdentifier"] =
                                 cleanID
 
@@ -1530,13 +1483,11 @@ struct ContentView: View {
                             }
 
                             if didChangeURLScheme {
-                                updateURLScheme(
-                                    in: &dict,
-                                    scheme: cleanScheme,
-                                    bundleID: cleanID
-                                )
+                                updateURLScheme(in: &dict, scheme: cleanScheme, bundleID: cleanID)
                             }
+
                         } else if shouldRewriteBundleIDs {
+
                             if let oldID =
                                 dict["CFBundleIdentifier"]
                                 as? String {
@@ -1558,61 +1509,42 @@ struct ContentView: View {
                             }
                         }
 
-                        let rewrittenData =
+                        data =
                             try PropertyListSerialization
                                 .data(
                                     fromPropertyList: dict,
                                     format: .xml,
                                     options: 0
                                 )
-
-                        try rewrittenData.write(
-                            to: tempFile,
-                            options: .atomic
-                        )
-
-                        outputSize =
-                            Int64(rewrittenData.count)
                     }
-
-                    let reader =
-                        try FileHandle(
-                            forReadingFrom: tempFile
-                        )
-
-                    defer {
-                        try? reader.close()
-                    }
-
-                    let sizeForProvider =
-                        outputSize
 
                     try outputArchive.addEntry(
                         with: entry.path,
                         type: .file,
-                        uncompressedSize: sizeForProvider,
+                        uncompressedSize:
+                            Int64(data.count),
                         compressionMethod: .deflate,
                         provider: {
                             position,
                             size -> Data in
 
-                            do {
-                                try reader.seek(
-                                    toOffset:
-                                        UInt64(position)
+                            let start =
+                                Int(position)
+
+                            let end =
+                                min(
+                                    start + size,
+                                    data.count
                                 )
 
-                                return try reader.read(
-                                    upToCount: size
-                                ) ?? Data()
-                            } catch {
+                            guard start < end else {
                                 return Data()
                             }
-                        }
-                    )
 
-                    try? FileManager.default.removeItem(
-                        at: tempFile
+                            return data.subdata(
+                                in: start..<end
+                            )
+                        }
                     )
 
                     processed += 1
@@ -1626,14 +1558,15 @@ struct ContentView: View {
                     )
                 }
 
-                // Keep outputArchive alive until the loop has completed so
-                // ZIPFoundation can finish the central directory cleanly.
-
                 DispatchQueue.main.async {
+
                     rewrittenExtensions =
                         rewrittenCount
 
                     exportURL = output
+                    exportFileName = output.lastPathComponent
+                    inputFileSize = fileSize(of: input)
+                    outputFileSize = fileSize(of: output)
 
                     exportSummary =
                         makeExportSummary(
@@ -1666,7 +1599,9 @@ struct ContentView: View {
                 }
 
             } catch {
+
                 DispatchQueue.main.async {
+
                     isExporting = false
                     exportProgress = 0
                     exportProgressText = ""
@@ -1679,12 +1614,6 @@ struct ContentView: View {
                     UINotificationFeedbackGenerator()
                         .notificationOccurred(.error)
                 }
-            }
-
-            if let temporaryDirectory {
-                try? FileManager.default.removeItem(
-                    at: temporaryDirectory
-                )
             }
         }
     }
@@ -1748,6 +1677,97 @@ struct ContentView: View {
         return candidate
     }
 
+    private func validateURLScheme(_ scheme: String) -> String {
+        let clean = scheme.trimmingCharacters(in: .whitespacesAndNewlines)
+        if clean.isEmpty {
+            return originalURLScheme.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                ? ""
+                : "URL scheme cannot be empty."
+        }
+        if clean.count > 100 {
+            return "URL scheme is too long."
+        }
+        if clean.contains("://") || clean.contains("/") || clean.contains(" ") {
+            return "URL scheme contains invalid characters."
+        }
+        let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+.-")
+        if clean.rangeOfCharacter(from: allowed.inverted) != nil {
+            return "URL scheme contains invalid characters."
+        }
+        guard let first = clean.first,
+              first.isLetter else {
+            return "URL scheme must start with a letter."
+        }
+        return ""
+    }
+
+    private func firstURLScheme(from dict: [String: Any]) -> String {
+        guard let types = dict["CFBundleURLTypes"] as? [[String: Any]] else { return "" }
+        for type in types {
+            if let schemes = type["CFBundleURLSchemes"] as? [String],
+               let first = schemes.first {
+                return first
+            }
+        }
+        return ""
+    }
+
+    private func updateURLScheme(in dict: inout [String: Any], scheme: String, bundleID: String) {
+        if var types = dict["CFBundleURLTypes"] as? [[String: Any]], !types.isEmpty {
+            if var schemes = types[0]["CFBundleURLSchemes"] as? [String], !schemes.isEmpty {
+                schemes[0] = scheme
+                types[0]["CFBundleURLSchemes"] = schemes
+            } else {
+                types[0]["CFBundleURLSchemes"] = [scheme]
+            }
+            dict["CFBundleURLTypes"] = types
+        } else {
+            dict["CFBundleURLTypes"] = [[
+                "CFBundleURLName": bundleID,
+                "CFBundleURLSchemes": [scheme]
+            ]]
+        }
+    }
+
+    private func fileSize(of url: URL) -> Int64 {
+        guard let values = try? url.resourceValues(forKeys: [.fileSizeKey]),
+              let size = values.fileSize else { return 0 }
+        return Int64(size)
+    }
+
+    private func formattedFileSize(_ bytes: Int64) -> String {
+        guard bytes > 0 else { return "Unknown" }
+        let formatter = ByteCountFormatter()
+        formatter.countStyle = .file
+        formatter.includesUnit = true
+        formatter.isAdaptive = true
+        return formatter.string(fromByteCount: bytes)
+    }
+
+    private func renameExportedIPA() {
+        guard let currentURL = exportURL else { return }
+        var name = exportFileName.trimmingCharacters(in: .whitespacesAndNewlines)
+        name = URL(fileURLWithPath: name).lastPathComponent
+        if !name.lowercased().hasSuffix(".ipa") { name += ".ipa" }
+        guard name.count > 4 else { return }
+
+        let destination = currentURL.deletingLastPathComponent().appendingPathComponent(name)
+        if destination == currentURL { return }
+
+        do {
+            if FileManager.default.fileExists(atPath: destination.path) {
+                try FileManager.default.removeItem(at: destination)
+            }
+            try FileManager.default.moveItem(at: currentURL, to: destination)
+            exportURL = destination
+            exportFileName = destination.lastPathComponent
+            outputFileSize = fileSize(of: destination)
+            status = "Export complete. Original file was not replaced."
+        } catch {
+            status = "Could not rename exported IPA: \(error.localizedDescription)"
+        }
+    }
+
     private func validateBundleID(
         _ id: String
     ) -> String {
@@ -1794,118 +1814,6 @@ struct ContentView: View {
         }
 
         return ""
-    }
-
-    private func validateURLScheme(
-        _ scheme: String
-    ) -> String {
-        let clean =
-            scheme.trimmingCharacters(
-                in: .whitespacesAndNewlines
-            )
-
-        if clean.isEmpty {
-            return originalURLScheme.isEmpty
-                ? ""
-                : "URL scheme cannot be empty."
-        }
-
-        if clean.count > 100 {
-            return "URL scheme is too long."
-        }
-
-        if clean.contains("://") ||
-            clean.contains("/") ||
-            clean.contains("\\") ||
-            clean.contains(":") ||
-            clean.contains(" ") {
-            return "URL scheme contains invalid characters."
-        }
-
-        let allowed =
-            CharacterSet(
-                charactersIn:
-                    "abcdefghijklmnopqrstuvwxyz" +
-                    "ABCDEFGHIJKLMNOPQRSTUVWXYZ" +
-                    "0123456789+.-"
-            )
-
-        if clean.rangeOfCharacter(
-            from: allowed.inverted
-        ) != nil {
-            return "URL scheme contains invalid characters."
-        }
-
-        guard let first = clean.first else {
-            return ""
-        }
-
-        let firstString = String(first)
-        let firstAllowed =
-            CharacterSet(
-                charactersIn:
-                    "abcdefghijklmnopqrstuvwxyz" +
-                    "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-            )
-
-        if firstString.rangeOfCharacter(
-            from: firstAllowed
-        ) == nil {
-            return "URL scheme must start with a letter."
-        }
-
-        return ""
-    }
-
-    private func updateURLScheme(
-        in dict: inout [String: Any],
-        scheme: String,
-        bundleID: String
-    ) {
-        let clean =
-            scheme.trimmingCharacters(
-                in: .whitespacesAndNewlines
-            )
-
-        guard !clean.isEmpty else {
-            return
-        }
-
-        if var urlTypes =
-            dict["CFBundleURLTypes"] as? [[String: Any]],
-           !urlTypes.isEmpty {
-
-            var updated = false
-
-            for index in urlTypes.indices {
-                guard var schemes =
-                    urlTypes[index]["CFBundleURLSchemes"]
-                    as? [String],
-                    !schemes.isEmpty else {
-                    continue
-                }
-
-                schemes[0] = clean
-                urlTypes[index]["CFBundleURLSchemes"] =
-                    schemes
-                updated = true
-                break
-            }
-
-            if !updated {
-                urlTypes[0]["CFBundleURLSchemes"] =
-                    [clean]
-            }
-
-            dict["CFBundleURLTypes"] = urlTypes
-        } else {
-            dict["CFBundleURLTypes"] = [
-                [
-                    "CFBundleURLName": bundleID,
-                    "CFBundleURLSchemes": [clean]
-                ]
-            ]
-        }
     }
 
     private func makeExportSummary(
