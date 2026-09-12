@@ -18,6 +18,9 @@ struct ContentView: View {
     @State private var displayName = ""
     @State private var originalDisplayName = ""
 
+    @State private var originalURLScheme = ""
+    @State private var newURLScheme = ""
+
     @State private var duplicateMode = false
 
     @State private var foundExtensions: [String] = []
@@ -75,6 +78,18 @@ struct ContentView: View {
         cleanDisplayName != cleanOriginalDisplayName
     }
 
+    private var cleanNewURLScheme: String {
+        newURLScheme.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var cleanOriginalURLScheme: String {
+        originalURLScheme.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var urlSchemeChanged: Bool {
+        cleanNewURLScheme != cleanOriginalURLScheme
+    }
+
     private var extensionRemovalChanged: Bool {
         !selectedExtensionsToRemove.isEmpty
     }
@@ -82,6 +97,7 @@ struct ContentView: View {
     private var hasPendingChanges: Bool {
         bundleIDChanged ||
         displayNameChanged ||
+        urlSchemeChanged ||
         extensionRemovalChanged
     }
 
@@ -116,6 +132,10 @@ struct ContentView: View {
         }
 
         if cleanDisplayName.count > 30 {
+            return .red
+        }
+
+        if !validateURLScheme(cleanNewURLScheme).isEmpty {
             return .red
         }
 
@@ -173,12 +193,21 @@ struct ContentView: View {
             return "Display name is too long."
         }
 
+        let schemeError = validateURLScheme(cleanNewURLScheme)
+        if !schemeError.isEmpty {
+            return schemeError
+        }
+
         if !hasPendingChanges {
             return "No changes detected."
         }
 
         if !bundleIDChanged {
             return "Bundle ID unchanged — app may replace the original install."
+        }
+
+        if urlSchemeChanged {
+            return "URL scheme changed — links using the original scheme will no longer open this copy."
         }
 
         if extensionRemovalChanged {
@@ -245,7 +274,7 @@ struct ContentView: View {
 
                 Spacer()
 
-                Text("1.2")
+                Text("v1.2")
                     .font(.caption.weight(.bold))
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 9)
@@ -321,6 +350,8 @@ struct ContentView: View {
             appOverviewCard
 
             bundleIDCard
+
+            urlSchemeCard
 
             extensionCard
 
@@ -491,6 +522,97 @@ struct ContentView: View {
                 )
             }
             .buttonStyle(.plain)
+        }
+        .cardStyle()
+    }
+
+    private var urlSchemeCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+
+            sectionTitle(
+                icon: "link",
+                title: "URL Scheme"
+            )
+
+            HStack(spacing: 8) {
+                Text(
+                    cleanOriginalURLScheme.isEmpty
+                    ? "None"
+                    : cleanOriginalURLScheme
+                )
+                .font(.system(.body, design: .monospaced))
+                .lineLimit(1)
+                .truncationMode(.middle)
+
+                Spacer()
+
+                if !cleanOriginalURLScheme.isEmpty {
+                    Button {
+                        UIPasteboard.general.string = cleanOriginalURLScheme
+                    } label: {
+                        Image(systemName: "doc.on.doc")
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .foregroundStyle(.secondary)
+
+            Divider()
+
+            Text(
+                cleanOriginalURLScheme.isEmpty
+                ? "Add URL Scheme"
+                : "New URL Scheme"
+            )
+            .font(.subheadline.weight(.semibold))
+
+            HStack(spacing: 8) {
+                TextField(
+                    "example",
+                    text: $newURLScheme
+                )
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .font(.system(.body, design: .monospaced))
+                .lineLimit(1)
+
+                if !newURLScheme.isEmpty {
+                    Button {
+                        newURLScheme = cleanOriginalURLScheme
+                        clearStaleExportState()
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                Button {
+                    if let paste = UIPasteboard.general.string {
+                        newURLScheme = paste
+                        clearStaleExportState()
+                    }
+                } label: {
+                    Image(systemName: "doc.on.clipboard")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 13)
+            .padding(.vertical, 12)
+            .background(Color.secondary.opacity(0.08))
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .onChange(of: newURLScheme) { _ in
+                clearStaleExportState()
+            }
+
+            Text("Used when opening links like \(cleanNewURLScheme.isEmpty ? "example://…" : cleanNewURLScheme + "://…")")
+                .font(.caption)
+                .foregroundStyle(
+                    validateURLScheme(cleanNewURLScheme).isEmpty
+                    ? .secondary
+                    : .red
+                )
         }
         .cardStyle()
     }
@@ -964,6 +1086,9 @@ struct ContentView: View {
         displayName = ""
         originalDisplayName = ""
 
+        originalURLScheme = ""
+        newURLScheme = ""
+
         duplicateMode = false
 
         foundExtensions = []
@@ -1052,6 +1177,9 @@ struct ContentView: View {
             displayName = info.name
             originalDisplayName = info.name
 
+            originalURLScheme = info.urlScheme
+            newURLScheme = info.urlScheme
+
             foundExtensions = info.extensions
 
             validationMessage =
@@ -1080,6 +1208,7 @@ struct ContentView: View {
         let version: String
         let build: String
         let name: String
+        let urlScheme: String
         let extensions: [String]
     }
 
@@ -1151,6 +1280,22 @@ struct ContentView: View {
             ??
             ""
 
+        let urlScheme: String = {
+            guard let urlTypes = dict["CFBundleURLTypes"] as? [[String: Any]] else {
+                return ""
+            }
+
+            for urlType in urlTypes {
+                if let schemes = urlType["CFBundleURLSchemes"] as? [String],
+                   let first = schemes.first,
+                   !first.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    return first
+                }
+            }
+
+            return ""
+        }()
+
         let extensions =
             archive
                 .filter {
@@ -1166,6 +1311,7 @@ struct ContentView: View {
             version: version,
             build: build,
             name: name,
+            urlScheme: urlScheme,
             extensions: extensions
         )
     }
@@ -1195,6 +1341,12 @@ struct ContentView: View {
         let didChangeName =
             displayNameChanged
 
+        let didChangeURLScheme =
+            urlSchemeChanged
+
+        let cleanScheme =
+            cleanNewURLScheme
+
         let removedExtensionCount =
             selectedExtensionsToRemove.count
 
@@ -1212,6 +1364,7 @@ struct ContentView: View {
             originalFileName
 
         DispatchQueue.global(qos: .userInitiated).async {
+            var temporaryDirectory: URL?
 
             do {
                 guard let input else {
@@ -1229,6 +1382,13 @@ struct ContentView: View {
 
                 guard validation.isEmpty else {
                     throw SimpleError(validation)
+                }
+
+                let schemeValidation =
+                    validateURLScheme(cleanScheme)
+
+                guard schemeValidation.isEmpty else {
+                    throw SimpleError(schemeValidation)
                 }
 
                 guard let inputArchive =
@@ -1265,11 +1425,24 @@ struct ContentView: View {
                     )
                 }
 
+                let tempDirectory =
+                    FileManager.default.temporaryDirectory
+                        .appendingPathComponent(
+                            "IPAID-\(UUID().uuidString)",
+                            isDirectory: true
+                        )
+
+                try FileManager.default.createDirectory(
+                    at: tempDirectory,
+                    withIntermediateDirectories: true
+                )
+
+                temporaryDirectory = tempDirectory
+
                 var rewrittenCount = 0
                 var processed = 0
 
                 for entry in files {
-
                     if selectedExtensionRoots.contains(
                         where: {
                             entry.path.hasPrefix($0)
@@ -1287,11 +1460,34 @@ struct ContentView: View {
                         continue
                     }
 
-                    var data =
-                        try extractData(
-                            entry: entry,
-                            from: inputArchive
+                    let tempFile =
+                        tempDirectory.appendingPathComponent(
+                            "\(UUID().uuidString).bin"
                         )
+
+                    // Extract directly to disk so large app binaries are
+                    // never loaded into memory as one Data object.
+                    FileManager.default.createFile(
+                        atPath: tempFile.path,
+                        contents: nil
+                    )
+
+                    let writer =
+                        try FileHandle(
+                            forWritingTo: tempFile
+                        )
+
+                    defer {
+                        try? writer.close()
+                    }
+
+                    _ = try inputArchive.extract(entry) {
+                        chunk in
+                        try writer.write(contentsOf: chunk)
+                    }
+
+                    var outputSize =
+                        Int64(entry.uncompressedSize)
 
                     let isMainInfoPlist =
                         entry.path == targetPlist
@@ -1303,9 +1499,812 @@ struct ContentView: View {
                     if isMainInfoPlist ||
                         isExtensionInfoPlist {
 
+                        let data =
+                            try Data(contentsOf: tempFile)
+
                         let plist =
                             try PropertyListSerialization
                                 .propertyList(
                                     from: data,
                                     options: [],
-                       
+                                    format: nil
+                                )
+
+                        guard var dict =
+                            plist as? [String: Any] else {
+                            throw SimpleError(
+                                "Could not edit Info.plist."
+                            )
+                        }
+
+                        if isMainInfoPlist {
+                            dict["CFBundleIdentifier"] =
+                                cleanID
+
+                            if !cleanName.isEmpty {
+                                dict["CFBundleDisplayName"] =
+                                    cleanName
+
+                                dict["CFBundleName"] =
+                                    cleanName
+                            }
+
+                            if didChangeURLScheme {
+                                updateURLScheme(
+                                    in: &dict,
+                                    scheme: cleanScheme,
+                                    bundleID: cleanID
+                                )
+                            }
+                        } else if shouldRewriteBundleIDs {
+                            if let oldID =
+                                dict["CFBundleIdentifier"]
+                                as? String {
+
+                                let lastComponent =
+                                    oldID
+                                        .split(
+                                            separator: "."
+                                        )
+                                        .last
+                                        ?? ""
+
+                                dict["CFBundleIdentifier"] =
+                                    cleanID +
+                                    "." +
+                                    lastComponent
+
+                                rewrittenCount += 1
+                            }
+                        }
+
+                        let rewrittenData =
+                            try PropertyListSerialization
+                                .data(
+                                    fromPropertyList: dict,
+                                    format: .xml,
+                                    options: 0
+                                )
+
+                        try rewrittenData.write(
+                            to: tempFile,
+                            options: .atomic
+                        )
+
+                        outputSize =
+                            Int64(rewrittenData.count)
+                    }
+
+                    let reader =
+                        try FileHandle(
+                            forReadingFrom: tempFile
+                        )
+
+                    defer {
+                        try? reader.close()
+                    }
+
+                    let sizeForProvider =
+                        outputSize
+
+                    try outputArchive.addEntry(
+                        with: entry.path,
+                        type: .file,
+                        uncompressedSize: sizeForProvider,
+                        compressionMethod: .deflate,
+                        provider: {
+                            position,
+                            size -> Data in
+
+                            do {
+                                try reader.seek(
+                                    toOffset:
+                                        UInt64(position)
+                                )
+
+                                return try reader.read(
+                                    upToCount: size
+                                ) ?? Data()
+                            } catch {
+                                return Data()
+                            }
+                        }
+                    )
+
+                    try? FileManager.default.removeItem(
+                        at: tempFile
+                    )
+
+                    processed += 1
+
+                    updateExportProgress(
+                        progress:
+                            Double(processed) /
+                            Double(max(files.count, 1)),
+                        text:
+                            "Compressing \(processed) of \(files.count)…"
+                    )
+                }
+
+                // Keep outputArchive alive until the loop has completed so
+                // ZIPFoundation can finish the central directory cleanly.
+
+                DispatchQueue.main.async {
+                    rewrittenExtensions =
+                        rewrittenCount
+
+                    exportURL = output
+
+                    exportSummary =
+                        makeExportSummary(
+                            bundleIDChanged:
+                                shouldRewriteBundleIDs,
+                            displayNameChanged:
+                                didChangeName,
+                            urlSchemeChanged:
+                                didChangeURLScheme,
+                            removedExtensions:
+                                removedExtensionCount,
+                            rewrittenExtensions:
+                                rewrittenCount
+                        )
+
+                    extensionsExpanded = false
+                    expandedExtensionInfo = nil
+
+                    exportProgress = 1
+                    exportProgressText =
+                        "Export complete."
+
+                    isExporting = false
+
+                    status =
+                        "Export complete. Original file was not replaced."
+
+                    UINotificationFeedbackGenerator()
+                        .notificationOccurred(.success)
+                }
+
+            } catch {
+                DispatchQueue.main.async {
+                    isExporting = false
+                    exportProgress = 0
+                    exportProgressText = ""
+
+                    exportSummary = ""
+
+                    status =
+                        "Export failed: \(error.localizedDescription)"
+
+                    UINotificationFeedbackGenerator()
+                        .notificationOccurred(.error)
+                }
+            }
+
+            if let temporaryDirectory {
+                try? FileManager.default.removeItem(
+                    at: temporaryDirectory
+                )
+            }
+        }
+    }
+
+    private func updateExportProgress(
+        progress: Double,
+        text: String
+    ) {
+        DispatchQueue.main.async {
+            exportProgress =
+                min(max(progress, 0), 1)
+
+            exportProgressText = text
+        }
+    }
+
+    private func makeReadableOutputURL(
+        input: URL,
+        originalName: String
+    ) -> URL {
+
+        let baseName: String
+
+        if !originalName.isEmpty {
+
+            baseName =
+                URL(fileURLWithPath: originalName)
+                    .deletingPathExtension()
+                    .lastPathComponent
+
+        } else {
+
+            baseName =
+                input
+                    .deletingPathExtension()
+                    .lastPathComponent
+        }
+
+        let folder =
+            FileManager.default.temporaryDirectory
+
+        var version = 1
+
+        var candidate =
+            folder.appendingPathComponent(
+                "\(baseName)-bid\(version).ipa"
+            )
+
+        while FileManager.default.fileExists(
+            atPath: candidate.path
+        ) {
+
+            version += 1
+
+            candidate =
+                folder.appendingPathComponent(
+                    "\(baseName)-bid\(version).ipa"
+                )
+        }
+
+        return candidate
+    }
+
+    private func validateBundleID(
+        _ id: String
+    ) -> String {
+
+        let clean =
+            id.trimmingCharacters(
+                in: .whitespacesAndNewlines
+            )
+
+        if clean.isEmpty {
+            return "Bundle ID cannot be empty."
+        }
+
+        if clean.count > 120 {
+            return "Bundle ID is too long."
+        }
+
+        if !clean.contains(".") {
+            return "Bundle ID must contain at least one dot."
+        }
+
+        if clean.contains("..") {
+            return "Bundle ID cannot contain two dots in a row."
+        }
+
+        let allowed =
+            CharacterSet(
+                charactersIn:
+                    "abcdefghijklmnopqrstuvwxyz" +
+                    "ABCDEFGHIJKLMNOPQRSTUVWXYZ" +
+                    "0123456789.-"
+            )
+
+        if clean.rangeOfCharacter(
+            from: allowed.inverted
+        ) != nil {
+            return "Bundle ID contains invalid characters."
+        }
+
+        if clean.hasPrefix(".") ||
+            clean.hasSuffix(".") {
+
+            return "Bundle ID cannot start or end with a dot."
+        }
+
+        return ""
+    }
+
+    private func validateURLScheme(
+        _ scheme: String
+    ) -> String {
+        let clean =
+            scheme.trimmingCharacters(
+                in: .whitespacesAndNewlines
+            )
+
+        if clean.isEmpty {
+            return originalURLScheme.isEmpty
+                ? ""
+                : "URL scheme cannot be empty."
+        }
+
+        if clean.count > 100 {
+            return "URL scheme is too long."
+        }
+
+        if clean.contains("://") ||
+            clean.contains("/") ||
+            clean.contains("\\") ||
+            clean.contains(":") ||
+            clean.contains(" ") {
+            return "URL scheme contains invalid characters."
+        }
+
+        let allowed =
+            CharacterSet(
+                charactersIn:
+                    "abcdefghijklmnopqrstuvwxyz" +
+                    "ABCDEFGHIJKLMNOPQRSTUVWXYZ" +
+                    "0123456789+.-"
+            )
+
+        if clean.rangeOfCharacter(
+            from: allowed.inverted
+        ) != nil {
+            return "URL scheme contains invalid characters."
+        }
+
+        guard let first = clean.first else {
+            return ""
+        }
+
+        let firstString = String(first)
+        let firstAllowed =
+            CharacterSet(
+                charactersIn:
+                    "abcdefghijklmnopqrstuvwxyz" +
+                    "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+            )
+
+        if firstString.rangeOfCharacter(
+            from: firstAllowed
+        ) == nil {
+            return "URL scheme must start with a letter."
+        }
+
+        return ""
+    }
+
+    private func updateURLScheme(
+        in dict: inout [String: Any],
+        scheme: String,
+        bundleID: String
+    ) {
+        let clean =
+            scheme.trimmingCharacters(
+                in: .whitespacesAndNewlines
+            )
+
+        guard !clean.isEmpty else {
+            return
+        }
+
+        if var urlTypes =
+            dict["CFBundleURLTypes"] as? [[String: Any]],
+           !urlTypes.isEmpty {
+
+            var updated = false
+
+            for index in urlTypes.indices {
+                guard var schemes =
+                    urlTypes[index]["CFBundleURLSchemes"]
+                    as? [String],
+                    !schemes.isEmpty else {
+                    continue
+                }
+
+                schemes[0] = clean
+                urlTypes[index]["CFBundleURLSchemes"] =
+                    schemes
+                updated = true
+                break
+            }
+
+            if !updated {
+                urlTypes[0]["CFBundleURLSchemes"] =
+                    [clean]
+            }
+
+            dict["CFBundleURLTypes"] = urlTypes
+        } else {
+            dict["CFBundleURLTypes"] = [
+                [
+                    "CFBundleURLName": bundleID,
+                    "CFBundleURLSchemes": [clean]
+                ]
+            ]
+        }
+    }
+
+    private func makeExportSummary(
+        bundleIDChanged: Bool,
+        displayNameChanged: Bool,
+        urlSchemeChanged: Bool,
+        removedExtensions: Int,
+        rewrittenExtensions: Int
+    ) -> String {
+
+        var changes: [String] = []
+
+        if bundleIDChanged {
+            changes.append("Bundle ID changed")
+        }
+
+        if displayNameChanged {
+            changes.append("Display name changed")
+        }
+
+        if urlSchemeChanged {
+            changes.append("URL scheme changed")
+        }
+
+        if removedExtensions == 1 {
+            changes.append("1 extension removed")
+
+        } else if removedExtensions > 1 {
+            changes.append(
+                "\(removedExtensions) extensions removed"
+            )
+        }
+
+        if rewrittenExtensions == 1 {
+            changes.append(
+                "1 extension ID rewritten"
+            )
+
+        } else if rewrittenExtensions > 1 {
+            changes.append(
+                "\(rewrittenExtensions) extension IDs rewritten"
+            )
+        }
+
+        guard !changes.isEmpty else {
+            return ""
+        }
+
+        return "Applied: " +
+            changes.joined(separator: " • ")
+    }
+
+    private func clearStaleExportState() {
+
+        guard
+            exportURL != nil ||
+            rewrittenExtensions != 0 ||
+            status.hasPrefix("Export")
+        else {
+            return
+        }
+
+        exportURL = nil
+        rewrittenExtensions = 0
+        exportSummary = ""
+        copiedFilename = false
+
+        status =
+            "Changes updated. Export again to create a new IPA."
+    }
+
+    private func middleTruncated(
+        _ text: String,
+        limit: Int
+    ) -> String {
+
+        guard text.count > limit,
+              limit > 8 else {
+            return text
+        }
+
+        let keep =
+            max(
+                4,
+                (limit - 1) / 2
+            )
+
+        let start =
+            text.prefix(keep)
+
+        let end =
+            text.suffix(keep)
+
+        return "\(start)…\(end)"
+    }
+
+    private func extensionName(
+        from path: String
+    ) -> String {
+
+        let parts =
+            path
+                .split(separator: "/")
+                .map(String.init)
+
+        let rawName: String
+
+        if let appExtension =
+            parts.first(
+                where: {
+                    $0.hasSuffix(".appex")
+                }
+            ) {
+
+            rawName =
+                appExtension
+                    .replacingOccurrences(
+                        of: ".appex",
+                        with: ""
+                    )
+
+        } else {
+
+            rawName =
+                URL(fileURLWithPath: path)
+                    .deletingPathExtension()
+                    .lastPathComponent
+        }
+
+        return humanReadableExtensionName(
+            rawName
+        )
+    }
+
+    private func humanReadableExtensionName(
+        _ raw: String
+    ) -> String {
+
+        var name = raw
+
+        if name.hasSuffix("Extension") {
+            name.removeLast(
+                "Extension".count
+            )
+        }
+
+        name =
+            name.replacingOccurrences(
+                of: "_",
+                with: " "
+            )
+
+        name =
+            name.replacingOccurrences(
+                of: "-",
+                with: " "
+            )
+
+        var result = ""
+        var previousWasLowercaseOrNumber = false
+
+        for character in name {
+
+            let scalar =
+                String(character)
+
+            let isUppercase =
+                scalar.rangeOfCharacter(
+                    from: .uppercaseLetters
+                ) != nil
+
+            let isNumber =
+                scalar.rangeOfCharacter(
+                    from: .decimalDigits
+                ) != nil
+
+            if isUppercase &&
+                previousWasLowercaseOrNumber &&
+                !result.hasSuffix(" ") {
+
+                result.append(" ")
+            }
+
+            result.append(character)
+
+            previousWasLowercaseOrNumber =
+                scalar.rangeOfCharacter(
+                    from: .lowercaseLetters
+                ) != nil ||
+                isNumber
+        }
+
+        let cleaned =
+            result
+                .replacingOccurrences(
+                    of: "  ",
+                    with: " "
+                )
+                .trimmingCharacters(
+                    in: .whitespacesAndNewlines
+                )
+
+        return cleaned.isEmpty
+            ? raw
+            : cleaned
+    }
+
+    private func extensionTip(
+        for name: String
+    ) -> String {
+
+        let lower =
+            name.lowercased()
+
+        if lower.contains("widget") {
+            return "Adds Home Screen or Lock Screen widget support. Removing it disables that widget."
+        }
+
+        if lower.contains("intent") ||
+            lower.contains("siri") {
+
+            return "Handles Siri, Shortcuts, or App Intent actions. Removing it may disable automation features."
+        }
+
+        if lower.contains("notification service") {
+            return "Handles enhanced notification content, images, or media. Removing it may make notifications more basic."
+        }
+
+        if lower.contains("notification content") {
+            return "Provides custom notification layouts. Removing it may disable rich notification views."
+        }
+
+        if lower.contains("notification") {
+            return "Supports notification-related features. Removing it may affect alerts or notification previews."
+        }
+
+        if lower.contains("safari") {
+            return "Adds Safari integration. Removing it may disable Safari extension features."
+        }
+
+        if lower.contains("share") {
+            return "Adds Share Sheet integration. Removing it may stop the app appearing in share menus."
+        }
+
+        if lower.contains("watch") {
+            return "Adds Apple Watch support. Removing it may disable watchOS companion features."
+        }
+
+        return "App extension component. Removing it can reduce signing/App ID usage, but some app features may stop working."
+    }
+
+    private func extensionRoot(
+        from infoPlistPath: String
+    ) -> String {
+
+        guard let range =
+            infoPlistPath.range(
+                of: ".appex/"
+            ) else {
+            return infoPlistPath
+        }
+
+        return String(
+            infoPlistPath[
+                ..<range.upperBound
+            ]
+        )
+    }
+
+    private func extractData(
+        entry: Entry,
+        from archive: Archive
+    ) throws -> Data {
+
+        var data = Data()
+
+        _ = try archive.extract(entry) {
+            chunk in
+            data.append(chunk)
+        }
+
+        return data
+    }
+}
+
+private extension View {
+    func cardStyle() -> some View {
+        self
+            .padding(15)
+            .frame(
+                maxWidth: .infinity,
+                alignment: .leading
+            )
+            .background(
+                Color(
+                    uiColor:
+                        .secondarySystemGroupedBackground
+                )
+            )
+            .clipShape(
+                RoundedRectangle(
+                    cornerRadius: 17,
+                    style: .continuous
+                )
+            )
+    }
+}
+
+struct ActivityView:
+    UIViewControllerRepresentable {
+
+    let activityItems: [Any]
+
+    func makeUIViewController(
+        context: Context
+    ) -> UIActivityViewController {
+
+        UIActivityViewController(
+            activityItems: activityItems,
+            applicationActivities: nil
+        )
+    }
+
+    func updateUIViewController(
+        _ uiViewController: UIActivityViewController,
+        context: Context
+    ) {}
+}
+
+struct DocumentPicker:
+    UIViewControllerRepresentable {
+
+    let onPick: (URL) -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(
+            onPick: onPick
+        )
+    }
+
+    func makeUIViewController(
+        context: Context
+    ) -> UIDocumentPickerViewController {
+
+        let picker =
+            UIDocumentPickerViewController(
+                forOpeningContentTypes: [.item],
+                asCopy: true
+            )
+
+        picker.allowsMultipleSelection = false
+        picker.delegate = context.coordinator
+
+        return picker
+    }
+
+    func updateUIViewController(
+        _ uiViewController: UIDocumentPickerViewController,
+        context: Context
+    ) {}
+
+    final class Coordinator:
+        NSObject,
+        UIDocumentPickerDelegate {
+
+        let onPick: (URL) -> Void
+
+        init(
+            onPick: @escaping (URL) -> Void
+        ) {
+            self.onPick = onPick
+        }
+
+        func documentPicker(
+            _ controller: UIDocumentPickerViewController,
+            didPickDocumentsAt urls: [URL]
+        ) {
+
+            guard let url = urls.first else {
+                return
+            }
+
+            onPick(url)
+        }
+    }
+}
+
+struct SimpleError:
+    LocalizedError {
+
+    let message: String
+
+    init(
+        _ message: String
+    ) {
+        self.message = message
+    }
+
+    var errorDescription: String? {
+        message
+    }
+}
