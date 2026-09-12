@@ -611,7 +611,7 @@ struct ContentView: View {
                 .foregroundStyle(
                     validateURLScheme(cleanNewURLScheme).isEmpty
                     ? .secondary
-                    : .red
+                    : Color.red
                 )
         }
         .cardStyle()
