@@ -661,7 +661,7 @@ struct ContentView: View {
                     clearStaleExportState()
                 }
 
-                Text(originalURLScheme.isEmpty ? "Add a custom URL scheme." : "Change the scheme used by the app's custom links.")
+                Text(originalURLScheme.isEmpty ? "Add a custom URL scheme, e.g. myapp." : "Change the scheme used by the app's custom links.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -769,56 +769,37 @@ struct ContentView: View {
         VStack(alignment: .leading, spacing: 12) {
             sectionTitle(icon: "checkmark.circle.fill", title: "Export Ready")
 
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Export complete.")
-                    .font(.subheadline.weight(.semibold))
+            Text("Export complete.")
+                .font(.subheadline.weight(.semibold))
 
-                Text("Before: \(formattedFileSize(inputFileSize))")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+            HStack(spacing: 10) {
+                Image(systemName: "doc.zipper")
+                    .foregroundStyle(.blue)
 
-                Text("After: \(formattedFileSize(outputFileSize))")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            HStack(spacing: 8) {
                 TextField("Exported filename", text: $exportFileName)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .lineLimit(1)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 10)
-                    .background(Color.secondary.opacity(0.08))
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                    .onSubmit {
+                        renameExportedIPA()
+                    }
 
-                Button("Rename") {
-                    renameExportedIPA()
-                }
-                .buttonStyle(.bordered)
-                .disabled(exportFileName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            }
-
-            Button {
-                UIPasteboard.general.string = url.lastPathComponent
-                copiedFilename = true
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) {
-                    copiedFilename = false
-                }
-            } label: {
-                HStack(spacing: 10) {
-                    Image(systemName: "doc.zipper")
-                        .foregroundStyle(.blue)
-                    Text(url.lastPathComponent)
-                        .font(.callout)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                    Spacer()
+                Button {
+                    UIPasteboard.general.string = exportFileName
+                    copiedFilename = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) {
+                        copiedFilename = false
+                    }
+                } label: {
                     Image(systemName: copiedFilename ? "checkmark" : "doc.on.doc")
+                        .foregroundStyle(.blue)
                 }
-                .foregroundStyle(.primary)
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(Color.secondary.opacity(0.08))
+            .clipShape(RoundedRectangle(cornerRadius: 10))
 
             Button {
                 showShareSheet = true
@@ -828,11 +809,12 @@ struct ContentView: View {
             }
             .buttonStyle(.bordered)
 
-            if !status.isEmpty {
-                Text(status)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Before: \(formattedFileSize(inputFileSize))")
+                Text("After: \(formattedFileSize(outputFileSize))")
             }
+            .font(.caption)
+            .foregroundStyle(.secondary)
         }
         .cardStyle()
     }
@@ -1306,7 +1288,7 @@ struct ContentView: View {
     }
 
     private func exportUpdatedIPA() {
-        guard !isExporting else {
+        guard !isExporting, hasPendingChanges else {
             return
         }
 
@@ -1876,7 +1858,9 @@ struct ContentView: View {
             return
         }
 
-        exportURL = nil
+        // Keep the existing exported IPA visible. It remains a valid previous
+        // export, but a new export is required because the edited settings
+        // no longer match that file.
         rewrittenExtensions = 0
         exportSummary = ""
         copiedFilename = false
