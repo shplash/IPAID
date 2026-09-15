@@ -27,14 +27,14 @@ targets:
       PRODUCT_NAME: IPAID
       INFOPLIST_FILE: App/Info.plist
       SWIFT_VERSION: 5.0
-      CURRENT_PROJECT_VERSION: 111
-      MARKETING_VERSION: 1.2
+      CURRENT_PROJECT_VERSION: 112
+      MARKETING_VERSION: 1.21
 
     info:
       path: App/Info.plist
       properties:
-        CFBundleShortVersionString: "1.2"
-        CFBundleVersion: "111"
+        CFBundleShortVersionString: "1.21"
+        CFBundleVersion: "112"
         UILaunchScreen: {}
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
