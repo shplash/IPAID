@@ -2349,7 +2349,7 @@ private struct InfoView: View {
             HStack(spacing: 13) {
                 Image(systemName: icon)
                     .font(.system(size: 17, weight: .medium))
-                    .foregroundStyle((title == "GitHub" || title == "Check for Updates" || title == "Report a Bug" || title == "Request a Feature" || title == "Support Me") ? .primary : .blue)
+                    .foregroundStyle((title == "GitHub" || title == "Check for Updates" || title == "Report a Bug" || title == "Request a Feature" || title == "Support Me") ? Color.primary : Color.blue)
                     .frame(width: 26)
 
                 Text(title)
