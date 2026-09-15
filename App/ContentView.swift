@@ -2237,6 +2237,14 @@ private struct InfoView: View {
             subtleDivider
                 .padding(.top, 6)
 
+            infoRow(title: "Support Me", icon: "heart") {
+                UIApplication.shared.open(supportURL)
+            }
+            .foregroundStyle(.primary)
+
+            subtleDivider
+                .padding(.top, 6)
+
             sectionHeader("Feedback", icon: "bubble.left.and.bubble.right")
                 .padding(.top, 30)
                 .padding(.bottom, 4)
@@ -2258,27 +2266,10 @@ private struct InfoView: View {
                 .padding(.top, 30)
                 .padding(.bottom, 2)
 
-            HStack(alignment: .firstTextBaseline, spacing: 12) {
-                Text("Developed by shplash")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-
-                Spacer(minLength: 8)
-
-                Button {
-                    UIApplication.shared.open(supportURL)
-                } label: {
-                    HStack(spacing: 5) {
-                        Image(systemName: "heart")
-                            .font(.caption)
-                        Text("Support Me")
-                            .font(.subheadline.weight(.medium))
-                    }
-                    .foregroundStyle(.primary)
-                }
-                .buttonStyle(.plain)
-            }
-            .padding(.top, 12)
+            Text("Developed by shplash")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .padding(.top, 12)
 
             Text("Built with SwiftUI and ZIPFoundation")
                 .font(.caption)
@@ -2357,8 +2348,8 @@ private struct InfoView: View {
         Button(action: action) {
             HStack(spacing: 13) {
                 Image(systemName: icon)
-                    .font(.system(size: 19, weight: .medium))
-                    .foregroundStyle(.blue)
+                    .font(.system(size: 17, weight: .medium))
+                    .foregroundStyle((title == "GitHub" || title == "Check for Updates" || title == "Report a Bug" || title == "Request a Feature" || title == "Support Me") ? .primary : .blue)
                     .frame(width: 26)
 
                 Text(title)
