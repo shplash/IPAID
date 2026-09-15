@@ -1,4 +1,5 @@
 import SwiftUI
+import Foundation
 import UniformTypeIdentifiers
 import ZIPFoundation
 import UIKit
@@ -7,6 +8,8 @@ struct ContentView: View {
 
     @State private var showPicker = false
     @State private var showShareSheet = false
+    @State private var showInfo = false
+    @AppStorage("ipaidAppearance") private var appearanceMode = "system"
 
     @State private var ipaURL: URL?
     @State private var originalFileName = ""
@@ -271,8 +274,32 @@ struct ContentView: View {
                     ActivityView(activityItems: [exportURL])
                 }
             }
+            .sheet(isPresented: $showInfo) {
+                InfoView(
+                    currentVersion: currentAppVersion,
+                    appearanceMode: $appearanceMode
+                )
+            }
         }
         .navigationViewStyle(StackNavigationViewStyle())
+        .preferredColorScheme(selectedColorScheme)
+    }
+
+    private var currentAppVersion: String {
+        Bundle.main.object(
+            forInfoDictionaryKey: "CFBundleShortVersionString"
+        ) as? String ?? "Unknown"
+    }
+
+    private var selectedColorScheme: ColorScheme? {
+        switch appearanceMode {
+        case "light":
+            return .light
+        case "dark":
+            return .dark
+        default:
+            return nil
+        }
     }
 
     private var headerSection: some View {
@@ -289,13 +316,27 @@ struct ContentView: View {
 
                 Spacer()
 
-                Text("v1.2")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 5)
-                    .background(Color.secondary.opacity(0.12))
-                    .clipShape(Capsule())
+                HStack(spacing: 8) {
+                    Button {
+                        showInfo = true
+                    } label: {
+                        Image(systemName: "info.circle")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 30, height: 30)
+                            .background(Color.secondary.opacity(0.12))
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+
+                    Text("v\(currentAppVersion)")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 5)
+                        .background(Color.secondary.opacity(0.12))
+                        .clipShape(Capsule())
+                }
             }
 
             if !originalFileName.isEmpty {
@@ -2101,6 +2142,356 @@ struct ContentView: View {
 
         return data
     }
+}
+
+
+private struct InfoView: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let currentVersion: String
+    @Binding var appearanceMode: String
+
+    @State private var isCheckingForUpdate = false
+    @State private var updateAlert: UpdateAlert?
+
+    private let githubURL = URL(string: "https://github.com/shplash/IPAID")!
+    private let reportIssueURL = URL(string: "https://github.com/shplash/IPAID/issues/new?template=bug_report.yml")!
+    private let featureRequestURL = URL(string: "https://github.com/shplash/IPAID/issues/new?template=feature_request.yml")!
+
+    var body: some View {
+        NavigationView {
+            ZStack {
+                Color(uiColor: .systemGroupedBackground)
+                    .ignoresSafeArea()
+
+                ScrollView {
+                    VStack(spacing: 16) {
+                        infoHeader
+
+                        appearanceSection
+
+                        linksSection
+
+                        creditsSection
+
+                        Spacer(minLength: 20)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 12)
+                    .padding(.bottom, 24)
+                }
+            }
+            .navigationBarHidden(true)
+            .alert(item: $updateAlert) { alert in
+                if let url = alert.url {
+                    return Alert(
+                        title: Text(alert.title),
+                        message: Text(alert.message),
+                        primaryButton: .default(Text("View Update")) {
+                            UIApplication.shared.open(url)
+                        },
+                        secondaryButton: .cancel()
+                    )
+                }
+
+                return Alert(
+                    title: Text(alert.title),
+                    message: Text(alert.message),
+                    dismissButton: .default(Text("OK"))
+                )
+            }
+        }
+        .navigationViewStyle(StackNavigationViewStyle())
+    }
+
+    private var infoHeader: some View {
+        HStack(alignment: .firstTextBaseline) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text("IPAID")
+                    .font(.system(size: 34, weight: .bold, design: .rounded))
+
+                Text("IPA Bundle ID Editor")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            HStack(spacing: 8) {
+                Text("v\(currentVersion)")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 5)
+                    .background(Color.secondary.opacity(0.12))
+                    .clipShape(Capsule())
+
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 30, height: 30)
+                        .background(Color.secondary.opacity(0.12))
+                        .clipShape(Circle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var appearanceSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            sectionHeader("Appearance", icon: "circle.lefthalf.filled")
+
+            Picker("Appearance", selection: $appearanceMode) {
+                Text("System").tag("system")
+                Text("Light").tag("light")
+                Text("Dark").tag("dark")
+            }
+            .pickerStyle(.segmented)
+        }
+        .cardStyle()
+    }
+
+    private var linksSection: some View {
+        VStack(spacing: 0) {
+            sectionHeader("Links", icon: "link")
+
+            infoRow(
+                title: "GitHub",
+                icon: "chevron.left.forwardslash.chevron.right"
+            ) {
+                UIApplication.shared.open(githubURL)
+            }
+
+            Divider()
+                .padding(.leading, 44)
+
+            Button {
+                checkForUpdates()
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: isCheckingForUpdate ? "arrow.triangle.2.circlepath" : "arrow.clockwise")
+                        .foregroundStyle(.blue)
+                        .frame(width: 24)
+
+                    Text("Check for Updates")
+                        .foregroundStyle(.primary)
+
+                    Spacer()
+
+                    if isCheckingForUpdate {
+                        ProgressView()
+                    } else {
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+                .contentShape(Rectangle())
+                .padding(.vertical, 13)
+            }
+            .buttonStyle(.plain)
+            .disabled(isCheckingForUpdate)
+
+            Divider()
+                .padding(.leading, 44)
+
+            infoRow(
+                title: "Report an Issue",
+                icon: "ladybug"
+            ) {
+                UIApplication.shared.open(reportIssueURL)
+            }
+
+            Divider()
+                .padding(.leading, 44)
+
+            infoRow(
+                title: "Feature Request",
+                icon: "lightbulb"
+            ) {
+                UIApplication.shared.open(featureRequestURL)
+            }
+        }
+        .cardStyle()
+    }
+
+    private var creditsSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            sectionHeader("Credits", icon: "person.crop.circle")
+
+            VStack(alignment: .leading, spacing: 5) {
+                Text("IPAID")
+                    .font(.headline.weight(.semibold))
+
+                Text("Developed by shplash")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+
+                Text("Built with SwiftUI and ZIPFoundation")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.top, 2)
+        }
+        .cardStyle()
+    }
+
+    private func sectionHeader(_ title: String, icon: String) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .foregroundStyle(.blue)
+
+            Text(title)
+                .font(.headline.weight(.bold))
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.bottom, 2)
+    }
+
+    private func infoRow(
+        title: String,
+        icon: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Image(systemName: icon)
+                    .foregroundStyle(.blue)
+                    .frame(width: 24)
+
+                Text(title)
+                    .foregroundStyle(.primary)
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.tertiary)
+            }
+            .contentShape(Rectangle())
+            .padding(.vertical, 13)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func checkForUpdates() {
+        guard !isCheckingForUpdate else { return }
+
+        isCheckingForUpdate = true
+
+        Task {
+            do {
+                var request = URLRequest(
+                    url: URL(string: "https://api.github.com/repos/shplash/IPAID/releases/latest")!
+                )
+                request.setValue(
+                    "application/vnd.github+json",
+                    forHTTPHeaderField: "Accept"
+                )
+                request.setValue(
+                    "IPAID",
+                    forHTTPHeaderField: "User-Agent"
+                )
+
+                let (data, response) = try await URLSession.shared.data(for: request)
+
+                guard let httpResponse = response as? HTTPURLResponse,
+                      200..<300 ~= httpResponse.statusCode else {
+                    throw UpdateCheckError.invalidResponse
+                }
+
+                let release = try JSONDecoder().decode(
+                    GitHubRelease.self,
+                    from: data
+                )
+
+                await MainActor.run {
+                    isCheckingForUpdate = false
+
+                    let latestVersion = release.tagName
+                        .trimmingCharacters(in: CharacterSet(charactersIn: "vV"))
+
+                    if compareVersions(latestVersion, currentVersion) > 0,
+                       let url = URL(string: release.htmlURL) {
+                        updateAlert = UpdateAlert(
+                            title: "Update Available",
+                            message: "IPAID \(latestVersion) is available. You're running \(currentVersion).",
+                            url: url
+                        )
+                    } else {
+                        updateAlert = UpdateAlert(
+                            title: "You're Up to Date",
+                            message: "IPAID \(currentVersion) is the latest release."
+                        )
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    isCheckingForUpdate = false
+                    updateAlert = UpdateAlert(
+                        title: "Couldn't Check for Updates",
+                        message: "Please check your internet connection and try again."
+                    )
+                }
+            }
+        }
+    }
+
+    private func compareVersions(_ lhs: String, _ rhs: String) -> Int {
+        let left = versionNumbers(lhs)
+        let right = versionNumbers(rhs)
+        let count = max(left.count, right.count)
+
+        for index in 0..<count {
+            let l = index < left.count ? left[index] : 0
+            let r = index < right.count ? right[index] : 0
+
+            if l > r { return 1 }
+            if l < r { return -1 }
+        }
+
+        return 0
+    }
+
+    private func versionNumbers(_ version: String) -> [Int] {
+        version
+            .split(separator: ".")
+            .map { component in
+                Int(component.prefix { $0.isNumber }) ?? 0
+            }
+    }
+}
+
+private struct GitHubRelease: Decodable {
+    let tagName: String
+    let htmlURL: String
+
+    enum CodingKeys: String, CodingKey {
+        case tagName = "tag_name"
+        case htmlURL = "html_url"
+    }
+}
+
+private struct UpdateAlert: Identifiable {
+    let id = UUID()
+    let title: String
+    let message: String
+    let url: URL?
+
+    init(title: String, message: String, url: URL? = nil) {
+        self.title = title
+        self.message = message
+        self.url = url
+    }
+}
+
+private enum UpdateCheckError: Error {
+    case invalidResponse
 }
 
 private extension View {
