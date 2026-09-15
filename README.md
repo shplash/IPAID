@@ -83,9 +83,9 @@ to install or sign the exported IPA afterward.
 
 ## Support
 
-If IPAID has been useful to you, you can support its development as well as future projects on Ko-fi.
+If IPAID has been useful to you, you can support its development as well as future projects 
 
-[Support IPAID on Ko-fi](https://ko-fi.com/shplash)
+[Support Me ♡](https://ko-fi.com/shplash)
 
 ## License
 
