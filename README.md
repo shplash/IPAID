@@ -81,6 +81,10 @@ to install or sign the exported IPA afterward.
 
 <br>
 
+## Support this and future projects 
+
+https://ko-fi.com/shplash
+
 ## License
 
 Licensed under MPL-2.0.
