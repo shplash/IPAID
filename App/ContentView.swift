@@ -241,26 +241,24 @@ struct ContentView: View {
                 Color(uiColor: .systemGroupedBackground)
                     .ignoresSafeArea()
 
-                ScrollView {
-                    VStack(spacing: 16) {
+                VStack(spacing: 0) {
+                    headerSection
+                        .padding(.horizontal, 16)
+                        .padding(.top, 12)
+                        .padding(.bottom, 12)
 
-                        headerSection
+                    GeometryReader { proxy in
+                        ZStack {
+                            mainContent
+                                .frame(width: proxy.size.width)
+                                .offset(x: showInfo ? -proxy.size.width : 0)
 
-                        if currentBundleID.isEmpty {
-                            emptyStateSection
-                        } else {
-                            editorSection
+                            infoContent
+                                .frame(width: proxy.size.width)
+                                .offset(x: showInfo ? 0 : proxy.size.width)
                         }
-
-                        if let exportURL {
-                            outputSection(exportURL)
-                        }
-
-                        Spacer(minLength: 30)
+                        .clipped()
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 12)
-                    .padding(.bottom, 24)
                 }
             }
             .navigationBarHidden(true)
@@ -274,15 +272,72 @@ struct ContentView: View {
                     ActivityView(activityItems: [exportURL])
                 }
             }
-            .sheet(isPresented: $showInfo) {
-                InfoView(
-                    currentVersion: currentAppVersion,
-                    appearanceMode: $appearanceMode
-                )
-            }
         }
         .navigationViewStyle(StackNavigationViewStyle())
         .preferredColorScheme(selectedColorScheme)
+    }
+
+    private var mainContent: some View {
+        ScrollView {
+            VStack(spacing: 16) {
+                if !originalFileName.isEmpty {
+                    fileInfoSection
+                }
+
+                if currentBundleID.isEmpty {
+                    emptyStateSection
+                } else {
+                    editorSection
+                }
+
+                if let exportURL {
+                    outputSection(exportURL)
+                }
+
+                Spacer(minLength: 30)
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 4)
+            .padding(.bottom, 24)
+        }
+    }
+
+    private var infoContent: some View {
+        ScrollView {
+            VStack(spacing: 0) {
+                infoContentCard
+                Spacer(minLength: 30)
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 4)
+            .padding(.bottom, 24)
+        }
+    }
+
+    private var fileInfoSection: some View {
+        HStack(spacing: 7) {
+            Image(systemName: "doc.zipper")
+                .font(.caption)
+
+            Text(displayedOriginalFileName)
+                .font(.caption.weight(.medium))
+                .lineLimit(1)
+                .truncationMode(.middle)
+
+            Spacer()
+
+            if !currentBundleID.isEmpty {
+                Button("Unload") {
+                    unloadIPA()
+                }
+                .font(.caption.weight(.semibold))
+            }
+        }
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 9)
+        .background(Color.secondary.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: 11))
     }
 
     private var currentAppVersion: String {
@@ -303,66 +358,40 @@ struct ContentView: View {
     }
 
     private var headerSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("IPAID")
-                        .font(.system(size: 34, weight: .bold, design: .rounded))
+        HStack(alignment: .firstTextBaseline) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text("IPAID")
+                    .font(.system(size: 34, weight: .bold, design: .rounded))
 
-                    Text("IPA Bundle ID Editor")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-
-                Spacer()
-
-                HStack(spacing: 8) {
-                    Button {
-                        showInfo = true
-                    } label: {
-                        Image(systemName: "info.circle")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(.secondary)
-                            .frame(width: 30, height: 30)
-                            .background(Color.secondary.opacity(0.12))
-                            .clipShape(Circle())
-                    }
-                    .buttonStyle(.plain)
-
-                    Text("v\(currentAppVersion)")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 9)
-                        .padding(.vertical, 5)
-                        .background(Color.secondary.opacity(0.12))
-                        .clipShape(Capsule())
-                }
+                Text("IPA Bundle ID Editor")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
             }
 
-            if !originalFileName.isEmpty {
-                HStack(spacing: 7) {
-                    Image(systemName: "doc.zipper")
-                        .font(.caption)
+            Spacer()
 
-                    Text(displayedOriginalFileName)
-                        .font(.caption.weight(.medium))
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-
-                    Spacer()
-
-                    if !currentBundleID.isEmpty {
-                        Button("Unload") {
-                            unloadIPA()
-                        }
-                        .font(.caption.weight(.semibold))
+            HStack(spacing: 8) {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.28)) {
+                        showInfo.toggle()
                     }
+                } label: {
+                    Image(systemName: "info.circle")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 30, height: 30)
+                        .background(Color.secondary.opacity(0.12))
+                        .clipShape(Circle())
                 }
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 9)
-                .background(Color.secondary.opacity(0.08))
-                .clipShape(RoundedRectangle(cornerRadius: 11))
+                .buttonStyle(.plain)
+
+                Text("v\(currentAppVersion)")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 5)
+                    .background(Color.secondary.opacity(0.12))
+                    .clipShape(Capsule())
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -2146,8 +2175,6 @@ struct ContentView: View {
 
 
 private struct InfoView: View {
-    @Environment(\.dismiss) private var dismiss
-
     let currentVersion: String
     @Binding var appearanceMode: String
 
@@ -2159,81 +2186,25 @@ private struct InfoView: View {
     private let featureRequestURL = URL(string: "https://github.com/shplash/IPAID/issues/new?template=feature_request.yml")!
 
     var body: some View {
-        ZStack {
-            Color(uiColor: .systemBackground)
-                .ignoresSafeArea()
-
-            ScrollView {
-                VStack(spacing: 18) {
-                    // Keep the exact same header as the main screen.
-                    infoHeader
-
-                    infoContentCard
-
-                    Spacer(minLength: 20)
+        infoContentCard
+            .alert(item: $updateAlert) { alert in
+                if let url = alert.url {
+                    return Alert(
+                        title: Text(alert.title),
+                        message: Text(alert.message),
+                        primaryButton: .default(Text("View Update")) {
+                            UIApplication.shared.open(url)
+                        },
+                        secondaryButton: .cancel()
+                    )
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 12)
-                .padding(.bottom, 24)
-            }
-        }
-        .navigationBarHidden(true)
-        .alert(item: $updateAlert) { alert in
-            if let url = alert.url {
+
                 return Alert(
                     title: Text(alert.title),
                     message: Text(alert.message),
-                    primaryButton: .default(Text("View Update")) {
-                        UIApplication.shared.open(url)
-                    },
-                    secondaryButton: .cancel()
+                    dismissButton: .default(Text("OK"))
                 )
             }
-
-            return Alert(
-                title: Text(alert.title),
-                message: Text(alert.message),
-                dismissButton: .default(Text("OK"))
-            )
-        }
-    }
-
-    private var infoHeader: some View {
-        HStack(alignment: .firstTextBaseline) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text("IPAID")
-                    .font(.system(size: 34, weight: .bold, design: .rounded))
-
-                Text("IPA Bundle ID Editor")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-
-            Spacer()
-
-            HStack(spacing: 8) {
-                Text("v\(currentVersion)")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 5)
-                    .background(Color.secondary.opacity(0.12))
-                    .clipShape(Capsule())
-
-                Button {
-                    dismiss()
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 30, height: 30)
-                        .background(Color.secondary.opacity(0.12))
-                        .clipShape(Circle())
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var infoContentCard: some View {
@@ -2241,17 +2212,18 @@ private struct InfoView: View {
             sectionHeader("Appearance", icon: "circle.lefthalf.filled")
 
             appearanceControl
-                .padding(.top, 8)
+                .padding(.top, 16)
 
             subtleDivider
-                .padding(.top, 20)
+                .padding(.top, 28)
 
             sectionHeader("Links", icon: "link")
-                .padding(.top, 18)
+                .padding(.top, 24)
 
             infoRow(title: "GitHub", icon: "chevron.left.forwardslash.chevron.right") {
                 UIApplication.shared.open(githubURL)
             }
+            .padding(.top, 8)
 
             subtleDivider
             infoRow(title: "Check for Updates", icon: "arrow.clockwise", trailingProgress: isCheckingForUpdate) {
@@ -2270,12 +2242,12 @@ private struct InfoView: View {
             }
 
             subtleDivider
-                .padding(.top, 4)
+                .padding(.top, 8)
 
             sectionHeader("Credits", icon: "person.crop.circle")
-                .padding(.top, 18)
+                .padding(.top, 24)
 
-            VStack(alignment: .leading, spacing: 5) {
+            VStack(alignment: .leading, spacing: 7) {
                 Text("Developed by shplash")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
@@ -2284,13 +2256,14 @@ private struct InfoView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            .padding(.top, 7)
-            .padding(.bottom, 4)
+            .padding(.top, 10)
+            .padding(.bottom, 8)
         }
-        .padding(16)
+        .padding(.horizontal, 18)
+        .padding(.vertical, 22)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(uiColor: .secondarySystemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .background(Color(uiColor: .secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 
     private var appearanceControl: some View {
@@ -2300,30 +2273,25 @@ private struct InfoView: View {
             appearanceButton("Dark", value: "dark")
         }
         .padding(4)
-        .background(Color.primary.opacity(0.06))
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .background(Color.primary.opacity(0.055))
+        .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
     }
 
     private func appearanceButton(_ title: String, value: String) -> some View {
         Button {
             guard appearanceMode != value else { return }
-
-            var transaction = Transaction()
-            transaction.animation = nil
-            withTransaction(transaction) {
-                appearanceMode = value
-            }
+            appearanceMode = value
         } label: {
             Text(title)
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(appearanceMode == value ? .primary : .secondary)
                 .frame(maxWidth: .infinity)
-                .frame(height: 38)
+                .frame(height: 42)
                 .background(
-                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
                         .fill(
                             appearanceMode == value
-                                ? Color.primary.opacity(0.12)
+                                ? Color.primary.opacity(0.11)
                                 : Color.clear
                         )
                 )
@@ -2333,13 +2301,13 @@ private struct InfoView: View {
 
     private var subtleDivider: some View {
         Rectangle()
-            .fill(Color.primary.opacity(0.07))
+            .fill(Color.primary.opacity(0.055))
             .frame(height: 1)
             .padding(.leading, 44)
     }
 
     private func sectionHeader(_ title: String, icon: String) -> some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 11) {
             Image(systemName: icon)
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundStyle(.blue)
@@ -2357,7 +2325,7 @@ private struct InfoView: View {
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
-            HStack(spacing: 12) {
+            HStack(spacing: 13) {
                 Image(systemName: icon)
                     .font(.system(size: 19, weight: .medium))
                     .foregroundStyle(.blue)
@@ -2379,7 +2347,7 @@ private struct InfoView: View {
                 }
             }
             .contentShape(Rectangle())
-            .padding(.vertical, 13)
+            .padding(.vertical, 17)
         }
         .buttonStyle(.plain)
     }
