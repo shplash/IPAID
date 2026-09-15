@@ -2182,8 +2182,9 @@ private struct InfoView: View {
     @State private var updateAlert: UpdateAlert?
 
     private let githubURL = URL(string: "https://github.com/shplash/IPAID")!
-    private let reportIssueURL = URL(string: "https://github.com/shplash/IPAID/issues/new?template=bug_report.yml")!
-    private let featureRequestURL = URL(string: "https://github.com/shplash/IPAID/issues/new?template=feature_request.yml")!
+    private let reportIssueURL = URL(string: "https://tally.so/r/gDE8pP")!
+    private let featureRequestURL = URL(string: "https://tally.so/r/9q8Ag5")!
+    private let supportURL = URL(string: "https://ko-fi.com/shplash")!
 
     var body: some View {
         infoContentCard
@@ -2232,12 +2233,16 @@ private struct InfoView: View {
             .disabled(isCheckingForUpdate)
 
             subtleDivider
-            infoRow(title: "Report an Issue", icon: "ladybug") {
+
+            sectionHeader("Feedback", icon: "bubble.left.and.bubble.right")
+                .padding(.top, 24)
+
+            infoRow(title: "Report a Bug", icon: "ladybug") {
                 UIApplication.shared.open(reportIssueURL)
             }
 
             subtleDivider
-            infoRow(title: "Feature Request", icon: "lightbulb") {
+            infoRow(title: "Request a Feature", icon: "lightbulb") {
                 UIApplication.shared.open(featureRequestURL)
             }
 
@@ -2258,6 +2263,17 @@ private struct InfoView: View {
             }
             .padding(.top, 10)
             .padding(.bottom, 8)
+
+            subtleDivider
+                .padding(.top, 18)
+
+            sectionHeader("Support", icon: "heart")
+                .padding(.top, 24)
+
+            infoRow(title: "Support IPAID", icon: "cup.and.saucer") {
+                UIApplication.shared.open(supportURL)
+            }
+            .padding(.top, 8)
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 22)
