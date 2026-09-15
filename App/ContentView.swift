@@ -305,7 +305,7 @@ struct ContentView: View {
     private var infoContent: some View {
         ScrollView {
             VStack(spacing: 0) {
-                infoContentCard
+                InfoView(currentVersion: currentAppVersion, appearanceMode: $appearanceMode)
                 Spacer(minLength: 30)
             }
             .padding(.horizontal, 16)
