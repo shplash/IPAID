@@ -2159,49 +2159,43 @@ private struct InfoView: View {
     private let featureRequestURL = URL(string: "https://github.com/shplash/IPAID/issues/new?template=feature_request.yml")!
 
     var body: some View {
-        NavigationView {
-            ZStack {
-                Color(uiColor: .systemGroupedBackground)
-                    .ignoresSafeArea()
+        ZStack {
+            Color(uiColor: .systemBackground)
+                .ignoresSafeArea()
 
-                ScrollView {
-                    VStack(spacing: 16) {
-                        infoHeader
+            ScrollView {
+                VStack(spacing: 18) {
+                    // Keep the exact same header as the main screen.
+                    infoHeader
 
-                        appearanceSection
+                    infoContentCard
 
-                        linksSection
-
-                        creditsSection
-
-                        Spacer(minLength: 20)
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 12)
-                    .padding(.bottom, 24)
+                    Spacer(minLength: 20)
                 }
+                .padding(.horizontal, 16)
+                .padding(.top, 12)
+                .padding(.bottom, 24)
             }
-            .navigationBarHidden(true)
-            .alert(item: $updateAlert) { alert in
-                if let url = alert.url {
-                    return Alert(
-                        title: Text(alert.title),
-                        message: Text(alert.message),
-                        primaryButton: .default(Text("View Update")) {
-                            UIApplication.shared.open(url)
-                        },
-                        secondaryButton: .cancel()
-                    )
-                }
-
+        }
+        .navigationBarHidden(true)
+        .alert(item: $updateAlert) { alert in
+            if let url = alert.url {
                 return Alert(
                     title: Text(alert.title),
                     message: Text(alert.message),
-                    dismissButton: .default(Text("OK"))
+                    primaryButton: .default(Text("View Update")) {
+                        UIApplication.shared.open(url)
+                    },
+                    secondaryButton: .cancel()
                 )
             }
+
+            return Alert(
+                title: Text(alert.title),
+                message: Text(alert.message),
+                dismissButton: .default(Text("OK"))
+            )
         }
-        .navigationViewStyle(StackNavigationViewStyle())
     }
 
     private var infoHeader: some View {
@@ -2242,92 +2236,46 @@ private struct InfoView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private var appearanceSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
+    private var infoContentCard: some View {
+        VStack(alignment: .leading, spacing: 0) {
             sectionHeader("Appearance", icon: "circle.lefthalf.filled")
 
-            Picker("Appearance", selection: $appearanceMode) {
-                Text("System").tag("system")
-                Text("Light").tag("light")
-                Text("Dark").tag("dark")
-            }
-            .pickerStyle(.segmented)
-        }
-        .cardStyle()
-    }
+            appearanceControl
+                .padding(.top, 8)
 
-    private var linksSection: some View {
-        VStack(spacing: 0) {
+            subtleDivider
+                .padding(.top, 20)
+
             sectionHeader("Links", icon: "link")
+                .padding(.top, 18)
 
-            infoRow(
-                title: "GitHub",
-                icon: "chevron.left.forwardslash.chevron.right"
-            ) {
+            infoRow(title: "GitHub", icon: "chevron.left.forwardslash.chevron.right") {
                 UIApplication.shared.open(githubURL)
             }
 
-            Divider()
-                .padding(.leading, 44)
-
-            Button {
+            subtleDivider
+            infoRow(title: "Check for Updates", icon: "arrow.clockwise", trailingProgress: isCheckingForUpdate) {
                 checkForUpdates()
-            } label: {
-                HStack(spacing: 12) {
-                    Image(systemName: isCheckingForUpdate ? "arrow.triangle.2.circlepath" : "arrow.clockwise")
-                        .foregroundStyle(.blue)
-                        .frame(width: 24)
-
-                    Text("Check for Updates")
-                        .foregroundStyle(.primary)
-
-                    Spacer()
-
-                    if isCheckingForUpdate {
-                        ProgressView()
-                    } else {
-                        Image(systemName: "chevron.right")
-                            .font(.caption.weight(.bold))
-                            .foregroundStyle(.tertiary)
-                    }
-                }
-                .contentShape(Rectangle())
-                .padding(.vertical, 13)
             }
-            .buttonStyle(.plain)
             .disabled(isCheckingForUpdate)
 
-            Divider()
-                .padding(.leading, 44)
-
-            infoRow(
-                title: "Report an Issue",
-                icon: "ladybug"
-            ) {
+            subtleDivider
+            infoRow(title: "Report an Issue", icon: "ladybug") {
                 UIApplication.shared.open(reportIssueURL)
             }
 
-            Divider()
-                .padding(.leading, 44)
-
-            infoRow(
-                title: "Feature Request",
-                icon: "lightbulb"
-            ) {
+            subtleDivider
+            infoRow(title: "Feature Request", icon: "lightbulb") {
                 UIApplication.shared.open(featureRequestURL)
             }
-        }
-        .cardStyle()
-    }
 
-    private var creditsSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
+            subtleDivider
+                .padding(.top, 4)
+
             sectionHeader("Credits", icon: "person.crop.circle")
+                .padding(.top, 18)
 
             VStack(alignment: .leading, spacing: 5) {
-                Text("IPAID")
-                    .font(.headline.weight(.semibold))
-
                 Text("Developed by shplash")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
@@ -2336,42 +2284,99 @@ private struct InfoView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            .padding(.top, 2)
+            .padding(.top, 7)
+            .padding(.bottom, 4)
         }
-        .cardStyle()
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(uiColor: .secondarySystemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+
+    private var appearanceControl: some View {
+        HStack(spacing: 0) {
+            appearanceButton("System", value: "system")
+            appearanceButton("Light", value: "light")
+            appearanceButton("Dark", value: "dark")
+        }
+        .padding(4)
+        .background(Color.primary.opacity(0.06))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    private func appearanceButton(_ title: String, value: String) -> some View {
+        Button {
+            guard appearanceMode != value else { return }
+
+            var transaction = Transaction()
+            transaction.animation = nil
+            withTransaction(transaction) {
+                appearanceMode = value
+            }
+        } label: {
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(appearanceMode == value ? .primary : .secondary)
+                .frame(maxWidth: .infinity)
+                .frame(height: 38)
+                .background(
+                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                        .fill(
+                            appearanceMode == value
+                                ? Color.primary.opacity(0.12)
+                                : Color.clear
+                        )
+                )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var subtleDivider: some View {
+        Rectangle()
+            .fill(Color.primary.opacity(0.07))
+            .frame(height: 1)
+            .padding(.leading, 44)
     }
 
     private func sectionHeader(_ title: String, icon: String) -> some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 10) {
             Image(systemName: icon)
+                .font(.system(size: 18, weight: .semibold))
                 .foregroundStyle(.blue)
+                .frame(width: 26)
 
             Text(title)
                 .font(.headline.weight(.bold))
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.bottom, 2)
     }
 
     private func infoRow(
         title: String,
         icon: String,
+        trailingProgress: Bool = false,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
             HStack(spacing: 12) {
                 Image(systemName: icon)
+                    .font(.system(size: 19, weight: .medium))
                     .foregroundStyle(.blue)
-                    .frame(width: 24)
+                    .frame(width: 26)
 
                 Text(title)
+                    .font(.body)
                     .foregroundStyle(.primary)
 
                 Spacer()
 
-                Image(systemName: "chevron.right")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(.tertiary)
+                if trailingProgress {
+                    ProgressView()
+                        .controlSize(.small)
+                } else {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(.tertiary)
+                }
             }
             .contentShape(Rectangle())
             .padding(.vertical, 13)
@@ -2389,14 +2394,8 @@ private struct InfoView: View {
                 var request = URLRequest(
                     url: URL(string: "https://api.github.com/repos/shplash/IPAID/releases/latest")!
                 )
-                request.setValue(
-                    "application/vnd.github+json",
-                    forHTTPHeaderField: "Accept"
-                )
-                request.setValue(
-                    "IPAID",
-                    forHTTPHeaderField: "User-Agent"
-                )
+                request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+                request.setValue("IPAID", forHTTPHeaderField: "User-Agent")
 
                 let (data, response) = try await URLSession.shared.data(for: request)
 
@@ -2405,16 +2404,12 @@ private struct InfoView: View {
                     throw UpdateCheckError.invalidResponse
                 }
 
-                let release = try JSONDecoder().decode(
-                    GitHubRelease.self,
-                    from: data
-                )
+                let release = try JSONDecoder().decode(GitHubRelease.self, from: data)
+                let latestVersion = release.tagName
+                    .trimmingCharacters(in: CharacterSet(charactersIn: "vV"))
 
                 await MainActor.run {
                     isCheckingForUpdate = false
-
-                    let latestVersion = release.tagName
-                        .trimmingCharacters(in: CharacterSet(charactersIn: "vV"))
 
                     if compareVersions(latestVersion, currentVersion) > 0,
                        let url = URL(string: release.htmlURL) {
