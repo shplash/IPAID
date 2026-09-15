@@ -306,11 +306,11 @@ struct ContentView: View {
         ScrollView {
             VStack(spacing: 0) {
                 InfoView(currentVersion: currentAppVersion, appearanceMode: $appearanceMode)
-                Spacer(minLength: 30)
+                Spacer(minLength: 34)
             }
             .padding(.horizontal, 16)
-            .padding(.top, 4)
-            .padding(.bottom, 24)
+            .padding(.top, 14)
+            .padding(.bottom, 28)
         }
     }
 
@@ -2213,70 +2213,84 @@ private struct InfoView: View {
             sectionHeader("Appearance", icon: "circle.lefthalf.filled")
 
             appearanceControl
-                .padding(.top, 16)
+                .padding(.top, 15)
+                .padding(.bottom, 4)
 
             subtleDivider
-                .padding(.top, 28)
+                .padding(.top, 30)
 
             sectionHeader("Links", icon: "link")
-                .padding(.top, 24)
+                .padding(.top, 28)
+                .padding(.bottom, 4)
 
             infoRow(title: "GitHub", icon: "chevron.left.forwardslash.chevron.right") {
                 UIApplication.shared.open(githubURL)
             }
-            .padding(.top, 8)
 
             subtleDivider
+
             infoRow(title: "Check for Updates", icon: "arrow.clockwise", trailingProgress: isCheckingForUpdate) {
                 checkForUpdates()
             }
             .disabled(isCheckingForUpdate)
 
             subtleDivider
+                .padding(.top, 6)
 
             sectionHeader("Feedback", icon: "bubble.left.and.bubble.right")
-                .padding(.top, 24)
+                .padding(.top, 30)
+                .padding(.bottom, 4)
 
             infoRow(title: "Report a Bug", icon: "ladybug") {
                 UIApplication.shared.open(reportIssueURL)
             }
 
             subtleDivider
+
             infoRow(title: "Request a Feature", icon: "lightbulb") {
                 UIApplication.shared.open(featureRequestURL)
             }
 
             subtleDivider
-                .padding(.top, 8)
+                .padding(.top, 6)
 
             sectionHeader("Credits", icon: "person.crop.circle")
-                .padding(.top, 24)
+                .padding(.top, 30)
+                .padding(.bottom, 2)
 
-            VStack(alignment: .leading, spacing: 7) {
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
                 Text("Developed by shplash")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
 
-                Text("Built with SwiftUI and ZIPFoundation")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Spacer(minLength: 8)
+
+                Button {
+                    UIApplication.shared.open(supportURL)
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: "heart")
+                            .font(.caption)
+                        Text("Support Me")
+                            .font(.subheadline.weight(.medium))
+                    }
+                    .foregroundStyle(.primary)
+                }
+                .buttonStyle(.plain)
             }
-            .padding(.top, 10)
-            .padding(.bottom, 8)
+            .padding(.top, 12)
+
+            Text("Built with SwiftUI and ZIPFoundation")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .padding(.top, 2)
 
             subtleDivider
-                .padding(.top, 18)
-
-            sectionHeader("Support", icon: "heart")
                 .padding(.top, 24)
 
-            infoRow(title: "Support IPAID", icon: "cup.and.saucer") {
-                UIApplication.shared.open(supportURL)
-            }
-            .padding(.top, 8)
         }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 22)
+        .padding(.horizontal, 20)
+        .padding(.vertical, 28)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(uiColor: .secondarySystemGroupedBackground))
         .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
