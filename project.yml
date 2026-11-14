@@ -3,7 +3,7 @@ name: IPAID
 options:
   bundleIdPrefix: com.shplash
   deploymentTarget:
-    iOS: "15.0"
+    iOS: "14.0"
 
 packages:
   ZIPFoundation:
@@ -14,7 +14,7 @@ targets:
   IPAID:
     type: application
     platform: iOS
-    deploymentTarget: "15.0"
+    deploymentTarget: "14.0"
 
     sources:
       - App

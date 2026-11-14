@@ -6,14 +6,12 @@ import UIKit
 
 struct ContentView: View {
 
-    @State private var showPicker = false
-    @State private var showShareSheet = false
+    @State private var activeSheet: ActiveSheet?
     @State private var showInfo = false
     @AppStorage("ipaidAppearance") private var appearanceMode = "system"
 
     @State private var ipaURL: URL?
     @State private var originalFileName = ""
-    @State private var appInfoPlistPath: String?
 
     @State private var currentBundleID = ""
     @State private var newBundleID = ""
@@ -58,6 +56,26 @@ struct ContentView: View {
     @State private var exportProgress: Double = 0
     @State private var exportProgressText = ""
 
+    @State private var info: IPABundleInfo?
+    @State private var entries: [IPAEntry] = []
+    @State private var session: IPASession?
+    @State private var originalPlist: [String: Any] = [:]
+
+    @State private var newVersion = ""
+    @State private var newBuild = ""
+    @State private var versionExpanded = false
+    @State private var versionReferences: [IPAVersionReference] = []
+
+    @State private var originalIconData: Data?
+    @State private var replacementImage: UIImage?
+    @State private var replacementIconName = ""
+    @State private var replacementIconFiles: [String: Data] = [:]
+    @State private var iconHint: String?
+
+    @State private var plistOverrides = InfoPlistOverrides()
+
+    @State private var errorMessage: String?
+
     private var cleanNewBundleID: String {
         newBundleID.trimmingCharacters(in: .whitespacesAndNewlines)
     }
@@ -91,6 +109,59 @@ struct ContentView: View {
         newURLScheme.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    private var cleanVersion: String {
+        newVersion.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var cleanBuild: String {
+        newBuild.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var versionChanged: Bool {
+        cleanVersion != appVersion.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var buildChanged: Bool {
+        cleanBuild != appBuild.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var originalIconImage: UIImage? {
+        originalIconData.flatMap(UIImage.init(data:))
+    }
+
+    private var currentModifications: IPAModifications {
+        var modifications = IPAModifications(
+            bundleIdentifier: newBundleID,
+            displayName: displayName,
+            marketingVersion: newVersion,
+            buildNumber: newBuild,
+            urlScheme: newURLScheme
+        )
+
+        modifications.removedExtensions = selectedExtensionsToRemove
+        modifications.plistOverrides = plistOverrides
+
+        if replacementImage != nil, !replacementIconFiles.isEmpty {
+            modifications.icon = IPAIconReplacement(
+                imageName: replacementIconName.isEmpty ? "Image" : replacementIconName,
+                previewData: Data(),
+                files: replacementIconFiles
+            )
+        }
+
+        return modifications
+    }
+
+    private var currentSummary: IPAModificationSummary? {
+        guard let info else { return nil }
+
+        return IPAModificationSummary(
+            info: info,
+            entries: entries,
+            modifications: currentModifications
+        )
+    }
+
     private var urlSchemeChanged: Bool {
         cleanURLScheme != originalURLScheme.trimmingCharacters(in: .whitespacesAndNewlines)
     }
@@ -101,26 +172,46 @@ struct ContentView: View {
 
     private var currentSettingsSignature: String {
         let extensions = selectedExtensionsToRemove.sorted().joined(separator: "\u{1F}")
+        let iconFiles = replacementIconFiles
+            .map { "\($0.key):\($0.value.count)" }
+            .sorted()
+            .joined(separator: "\u{1F}")
+        let overrideKeys = plistOverrides.values.keys.sorted().joined(separator: ",")
+        let overrideValues = plistOverrides.values.keys
+            .sorted()
+            .compactMap { plistOverrides.values[$0]?.displayText }
+            .joined(separator: "\u{1F}")
+        let removedKeys = plistOverrides.removedKeys.sorted().joined(separator: ",")
+
         return [
             cleanNewBundleID,
             cleanDisplayName,
             cleanURLScheme,
-            extensions
+            cleanVersion,
+            cleanBuild,
+            extensions,
+            replacementIconName,
+            iconFiles,
+            overrideKeys,
+            overrideValues,
+            removedKeys
         ].joined(separator: "\u{1E}")
     }
 
     private var hasPendingChanges: Bool {
+        guard let info, currentModifications.hasChanges(from: info) else {
+            return false
+        }
+
         if let lastExportSignature, exportURL != nil {
             return currentSettingsSignature != lastExportSignature
         }
 
-        return bundleIDChanged ||
-        displayNameChanged ||
-        urlSchemeChanged ||
-        extensionRemovalChanged
+        return true
     }
 
     private var canExport: Bool {
+        info != nil &&
         !isExporting &&
         currentValidationTone != .red &&
         hasPendingChanges
@@ -134,27 +225,11 @@ struct ContentView: View {
     }
 
     private var currentValidationTone: ValidationTone {
-        guard !currentBundleID.isEmpty else {
+        guard let info else {
             return .none
         }
 
-        if !validateBundleID(cleanNewBundleID).isEmpty {
-            return .red
-        }
-
-        if cleanNewBundleID.count > 120 {
-            return .red
-        }
-
-        if cleanDisplayName.isEmpty {
-            return .red
-        }
-
-        if cleanDisplayName.count > 30 {
-            return .red
-        }
-
-        if !validateURLScheme(cleanURLScheme).isEmpty {
+        if !currentModifications.problems(comparedTo: info).isEmpty {
             return .red
         }
 
@@ -190,31 +265,12 @@ struct ContentView: View {
     }
 
     private var currentChangeMessage: String {
-        guard !currentBundleID.isEmpty else {
+        guard let info else {
             return ""
         }
 
-        let bundleError = validateBundleID(cleanNewBundleID)
-
-        if !bundleError.isEmpty {
-            return bundleError
-        }
-
-        if cleanNewBundleID.count > 120 {
-            return "Bundle ID is too long."
-        }
-
-        if cleanDisplayName.isEmpty {
-            return "Display name cannot be empty."
-        }
-
-        if cleanDisplayName.count > 30 {
-            return "Display name is too long."
-        }
-
-        let schemeError = validateURLScheme(cleanURLScheme)
-        if !schemeError.isEmpty {
-            return schemeError
+        if let problem = currentModifications.problems(comparedTo: info).first {
+            return problem
         }
 
         if !hasPendingChanges {
@@ -224,7 +280,7 @@ struct ContentView: View {
             return "No changes detected."
         }
 
-        if !bundleIDChanged && !displayNameChanged && !urlSchemeChanged {
+        if !bundleIDChanged {
             return "Bundle ID unchanged — app may replace the original install."
         }
 
@@ -238,7 +294,7 @@ struct ContentView: View {
     var body: some View {
         NavigationView {
             ZStack {
-                Color(uiColor: .systemGroupedBackground)
+                Color(UIColor.systemGroupedBackground)
                     .ignoresSafeArea()
 
                 VStack(spacing: 0) {
@@ -262,19 +318,111 @@ struct ContentView: View {
                 }
             }
             .navigationBarHidden(true)
-            .sheet(isPresented: $showPicker) {
-                DocumentPicker { url in
-                    handleSelectedFile(url)
-                }
-            }
-            .sheet(isPresented: $showShareSheet) {
-                if let exportURL {
-                    ActivityView(activityItems: [exportURL])
+            .sheet(item: $activeSheet) { sheet in
+                switch sheet {
+                case .picker:
+                    DocumentPicker(
+                        onPick: { url in
+                            activeSheet = nil
+                            handleSelectedFile(url)
+                        },
+                        onCancel: {
+                            activeSheet = nil
+                        }
+                    )
+
+                case .share:
+                    if let exportURL {
+                        ActivityView(activityItems: [exportURL])
+                    }
+
+                case .inspector:
+                    if let info {
+                        IPAInfoSheet(
+                            info: info,
+                            fileName: originalFileName,
+                            iconImage: originalIconImage,
+                            onClose: { activeSheet = nil }
+                        )
+                    }
+
+                case .browser:
+                    if let ipaURL {
+                        FileBrowserView(
+                            ipaURL: ipaURL,
+                            onClose: { activeSheet = nil }
+                        )
+                    }
+
+                case .plistEditor:
+                    if let info {
+                        AdvancedPlistView(
+                            info: info,
+                            original: originalPlist,
+                            overrides: $plistOverrides,
+                            onClose: { activeSheet = nil }
+                        )
+                    }
+
+                case .comparison:
+                    if let ipaURL {
+                        ComparisonView(
+                            primaryURL: ipaURL,
+                            primaryName: originalFileName,
+                            onClose: { activeSheet = nil }
+                        )
+                    }
+
+                case .presets:
+                    if let info {
+                        PresetsView(
+                            info: info,
+                            modifications: currentModifications,
+                            onApply: applyPreset,
+                            onClose: { activeSheet = nil }
+                        )
+                    }
+
+                case .modificationPreview:
+                    if let summary = currentSummary {
+                        ModificationPreviewView(
+                            summary: summary,
+                            originalIcon: originalIconImage,
+                            replacementIcon: replacementImage,
+                            isExporting: isExporting,
+                            onExport: {
+                                activeSheet = nil
+                                performExport()
+                            },
+                            onClose: { activeSheet = nil }
+                        )
+                    }
+
+                case .iconPhotos:
+                    PhotoLibraryPicker { image in
+                        activeSheet = nil
+
+                        if let image {
+                            applyIcon(image, name: "Photo")
+                        }
+                    }
+
+                case .iconFiles:
+                    ImageFilePicker { url in
+                        activeSheet = nil
+
+                        if let url {
+                            loadIconFile(url)
+                        }
+                    }
                 }
             }
         }
         .navigationViewStyle(StackNavigationViewStyle())
         .preferredColorScheme(selectedColorScheme)
+        .onAppear {
+            IPATemporaryStore.pruneSessions()
+        }
     }
 
     private var mainContent: some View {
@@ -282,6 +430,10 @@ struct ContentView: View {
             VStack(spacing: 16) {
                 if !originalFileName.isEmpty {
                     fileInfoSection
+                }
+
+                if let errorMessage {
+                    IPAInfoBanner(message: errorMessage, color: .red)
                 }
 
                 if currentBundleID.isEmpty {
@@ -331,9 +483,10 @@ struct ContentView: View {
                     unloadIPA()
                 }
                 .font(.caption.weight(.semibold))
+                .disabled(isExporting)
             }
         }
-        .foregroundStyle(.secondary)
+        .foregroundColor(.secondary)
         .padding(.horizontal, 12)
         .padding(.vertical, 9)
         .background(Color.secondary.opacity(0.08))
@@ -365,7 +518,7 @@ struct ContentView: View {
 
                 Text("IPA Bundle ID Editor")
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundColor(.secondary)
             }
 
             Spacer()
@@ -378,7 +531,7 @@ struct ContentView: View {
                 } label: {
                     Image(systemName: "info.circle")
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(.secondary)
+                        .foregroundColor(.secondary)
                         .frame(width: 30, height: 30)
                         .background(Color.secondary.opacity(0.12))
                         .clipShape(Circle())
@@ -387,7 +540,7 @@ struct ContentView: View {
 
                 Text("v\(currentAppVersion)")
                     .font(.caption.weight(.bold))
-                    .foregroundStyle(.secondary)
+                    .foregroundColor(.secondary)
                     .padding(.horizontal, 9)
                     .padding(.vertical, 5)
                     .background(Color.secondary.opacity(0.12))
@@ -401,7 +554,7 @@ struct ContentView: View {
         VStack(spacing: 18) {
             Image(systemName: "shippingbox")
                 .font(.system(size: 42))
-                .foregroundStyle(.blue)
+                .foregroundColor(.blue)
 
             VStack(spacing: 5) {
                 Text("Choose an IPA")
@@ -409,23 +562,23 @@ struct ContentView: View {
 
                 Text("Load an IPA to inspect and modify its bundle configuration.")
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
             }
 
             Button {
-                showPicker = true
+                activeSheet = .picker
             } label: {
                 Label("Select IPA", systemImage: "folder")
                     .font(.headline)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 13)
             }
-            .buttonStyle(.borderedProminent)
+            .ipaidProminentButton()
         }
         .padding(24)
         .frame(maxWidth: .infinity)
-        .background(Color(uiColor: .secondarySystemGroupedBackground))
+        .background(Color(UIColor.secondarySystemGroupedBackground))
         .clipShape(RoundedRectangle(cornerRadius: 20))
     }
 
@@ -440,7 +593,13 @@ struct ContentView: View {
 
             urlSchemeCard
 
+            versionCard
+
+            iconCard
+
             extensionCard
+
+            toolsCard
 
             if exportURL == nil || hasPendingChanges || isExporting {
                 validationCard
@@ -464,7 +623,7 @@ struct ContentView: View {
 
                     Text(currentBundleID)
                         .font(.system(.caption, design: .monospaced))
-                        .foregroundStyle(.secondary)
+                        .foregroundColor(.secondary)
                         .lineLimit(1)
                         .truncationMode(.middle)
                 }
@@ -472,14 +631,14 @@ struct ContentView: View {
                 Spacer()
 
                 VStack(alignment: .trailing, spacing: 3) {
-                    if !appVersion.isEmpty {
-                        Text("v\(appVersion)")
+                    if !newVersion.isEmpty {
+                        Text("v\(newVersion)")
                             .font(.subheadline.weight(.semibold))
                     }
 
-                    Text("Build \(appBuild)")
+                    Text("Build \(newBuild.isEmpty ? "Unknown" : newBuild)")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundColor(.secondary)
                 }
             }
         }
@@ -499,7 +658,7 @@ struct ContentView: View {
                     .font(.system(.body, design: .monospaced))
                     .lineLimit(1)
                     .truncationMode(.middle)
-                    .textSelection(.enabled)
+                    .ipaidTextSelection()
 
                 Spacer()
 
@@ -515,7 +674,7 @@ struct ContentView: View {
                 }
                 .buttonStyle(.plain)
             }
-            .foregroundStyle(.secondary)
+            .foregroundColor(.secondary)
 
             Divider()
 
@@ -527,8 +686,8 @@ struct ContentView: View {
                     "com.example.app",
                     text: $newBundleID
                 )
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
+                .autocapitalization(.none)
+                .disableAutocorrection(true)
                 .font(.system(.body, design: .monospaced))
                 .lineLimit(1)
 
@@ -536,11 +695,11 @@ struct ContentView: View {
                     Button {
                         newBundleID = ""
                         duplicateMode = false
-                        validationMessage = validateBundleID(newBundleID)
+                        validationMessage = MetadataValidation.bundleIdentifier(newBundleID)
                         clearStaleExportState()
                     } label: {
                         Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(.secondary)
+                            .foregroundColor(.secondary)
                     }
                     .buttonStyle(.plain)
                 }
@@ -548,12 +707,12 @@ struct ContentView: View {
                 Button {
                     if let paste = UIPasteboard.general.string {
                         newBundleID = paste
-                        validationMessage = validateBundleID(paste)
+                        validationMessage = MetadataValidation.bundleIdentifier(paste)
                         clearStaleExportState()
                     }
                 } label: {
                     Image(systemName: "doc.on.clipboard")
-                        .foregroundStyle(.secondary)
+                        .foregroundColor(.secondary)
                 }
                 .buttonStyle(.plain)
             }
@@ -567,7 +726,7 @@ struct ContentView: View {
                     duplicateMode = false
                 }
 
-                validationMessage = validateBundleID(value)
+                validationMessage = MetadataValidation.bundleIdentifier(value)
                 clearStaleExportState()
             }
 
@@ -580,7 +739,7 @@ struct ContentView: View {
                     newBundleID = currentBundleID
                 }
 
-                validationMessage = validateBundleID(newBundleID)
+                validationMessage = MetadataValidation.bundleIdentifier(newBundleID)
                 clearStaleExportState()
             } label: {
                 HStack(spacing: 9) {
@@ -597,12 +756,12 @@ struct ContentView: View {
 
                         Text("Use a different Bundle ID")
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundColor(.secondary)
                     }
 
                     Spacer()
                 }
-                .foregroundStyle(
+                .foregroundColor(
                     duplicateMode
                     ? Color.blue
                     : Color.primary
@@ -631,14 +790,14 @@ struct ContentView: View {
             } label: {
                 HStack {
                     Image(systemName: "textformat")
-                        .foregroundStyle(.blue)
+                        .foregroundColor(.blue)
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Display Name")
                             .font(.headline.weight(.bold))
                         Text(cleanDisplayName.isEmpty ? "No name" : cleanDisplayName)
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundColor(.secondary)
                             .lineLimit(1)
                     }
 
@@ -646,7 +805,7 @@ struct ContentView: View {
                     Image(systemName: displayNameExpanded ? "chevron.up" : "chevron.down")
                         .font(.caption.bold())
                 }
-                .foregroundStyle(.primary)
+                .foregroundColor(.primary)
             }
             .buttonStyle(.plain)
 
@@ -661,7 +820,7 @@ struct ContentView: View {
                             clearStaleExportState()
                         } label: {
                             Image(systemName: "xmark.circle.fill")
-                                .foregroundStyle(.secondary)
+                                .foregroundColor(.secondary)
                         }
                         .buttonStyle(.plain)
                     }
@@ -673,7 +832,7 @@ struct ContentView: View {
                         }
                     } label: {
                         Image(systemName: "doc.on.clipboard")
-                            .foregroundStyle(.secondary)
+                            .foregroundColor(.secondary)
                     }
                     .buttonStyle(.plain)
                 }
@@ -687,7 +846,7 @@ struct ContentView: View {
 
                 Text("\(cleanDisplayName.count)/30 characters")
                     .font(.caption)
-                    .foregroundStyle(cleanDisplayName.count > 30 ? .red : .secondary)
+                    .foregroundColor(cleanDisplayName.count > 30 ? .red : .secondary)
             }
         }
         .cardStyle()
@@ -702,14 +861,14 @@ struct ContentView: View {
             } label: {
                 HStack {
                     Image(systemName: "link")
-                        .foregroundStyle(.blue)
+                        .foregroundColor(.blue)
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text("URL Scheme")
                             .font(.headline.weight(.bold))
                         Text(cleanURLScheme.isEmpty ? "None" : cleanURLScheme)
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundColor(.secondary)
                             .lineLimit(1)
                     }
 
@@ -717,15 +876,15 @@ struct ContentView: View {
                     Image(systemName: urlSchemeExpanded ? "chevron.up" : "chevron.down")
                         .font(.caption.bold())
                 }
-                .foregroundStyle(.primary)
+                .foregroundColor(.primary)
             }
             .buttonStyle(.plain)
 
             if urlSchemeExpanded {
                 HStack(spacing: 8) {
                     TextField("myapp", text: $newURLScheme)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
+                        .autocapitalization(.none)
+                        .disableAutocorrection(true)
                         .font(.system(.body, design: .monospaced))
                         .lineLimit(1)
 
@@ -735,7 +894,7 @@ struct ContentView: View {
                             clearStaleExportState()
                         } label: {
                             Image(systemName: "xmark.circle.fill")
-                                .foregroundStyle(.secondary)
+                                .foregroundColor(.secondary)
                         }
                         .buttonStyle(.plain)
                     }
@@ -753,14 +912,253 @@ struct ContentView: View {
         .cardStyle()
     }
 
+    private var versionCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    versionExpanded.toggle()
+                }
+            } label: {
+                HStack {
+                    Image(systemName: "number")
+                        .foregroundColor(.blue)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Version")
+                            .font(.headline.weight(.bold))
+
+                        Text(versionSubtitle)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .lineLimit(1)
+                    }
+
+                    Spacer()
+
+                    Image(systemName: versionExpanded ? "chevron.up" : "chevron.down")
+                        .font(.caption.bold())
+                }
+                .foregroundColor(.primary)
+            }
+            .buttonStyle(.plain)
+
+            if versionExpanded {
+                versionField(
+                    title: "Marketing Version",
+                    placeholder: "1.0",
+                    text: $newVersion,
+                    original: appVersion,
+                    error: versionChanged ? MetadataValidation.marketingVersion(cleanVersion) : ""
+                )
+
+                versionField(
+                    title: "Build Number",
+                    placeholder: "1",
+                    text: $newBuild,
+                    original: appBuild,
+                    error: buildChanged ? MetadataValidation.buildNumber(cleanBuild) : ""
+                )
+
+                if versionChanged, !versionReferences.isEmpty {
+                    Text(versionReferenceText)
+                        .font(.caption2)
+                        .foregroundColor(.orange)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Text("Metadata only. This does not change the app's actual version.")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .cardStyle()
+    }
+
+    private var versionSubtitle: String {
+        let version = cleanVersion.isEmpty ? "Unknown" : cleanVersion
+        let build = cleanBuild.isEmpty ? "Unknown" : cleanBuild
+        return "\(version) (\(build))"
+    }
+
+    private var versionReferenceText: String {
+        let name = versionReferences[0].path
+            .split(separator: "/")
+            .last
+            .map(String.init) ?? versionReferences[0].path
+
+        if versionReferences.count == 1 {
+            return "The old version also appears in \(name). Only Info.plist is changed."
+        }
+
+        return "The old version also appears in \(versionReferences.count) bundled files, such as \(name). Only Info.plist is changed."
+    }
+
+    private func versionField(
+        title: String,
+        placeholder: String,
+        text: Binding<String>,
+        original: String,
+        error: String
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+
+                Spacer()
+
+                if !original.isEmpty {
+                    Text("Original \(original)")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+            }
+
+            IPAFieldBox {
+                TextField(placeholder, text: text)
+                    .font(.system(.body, design: .monospaced))
+                    .autocapitalization(.none)
+                    .disableAutocorrection(true)
+            }
+            .onChange(of: text.wrappedValue) { _ in
+                clearStaleExportState()
+            }
+
+            if !error.isEmpty {
+                Text(error)
+                    .font(.caption2)
+                    .foregroundColor(.red)
+            }
+        }
+    }
+
+    private var iconCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            sectionTitle(icon: "photo", title: "App Icon")
+
+            HStack(spacing: 14) {
+                IPAIconThumbnail(image: originalIconImage, caption: "Original", size: 62)
+
+                Image(systemName: "arrow.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(.secondary)
+
+                IPAIconThumbnail(image: replacementImage, caption: "Replacement", size: 62)
+
+                Spacer(minLength: 0)
+            }
+
+            HStack(spacing: 10) {
+                Button {
+                    activeSheet = .iconPhotos
+                } label: {
+                    Label("Photos", systemImage: "photo")
+                        .font(.subheadline.weight(.semibold))
+                }
+                .ipaidBorderedButton()
+
+                Button {
+                    activeSheet = .iconFiles
+                } label: {
+                    Label("Files", systemImage: "folder")
+                        .font(.subheadline.weight(.semibold))
+                }
+                .ipaidBorderedButton()
+
+                if replacementImage != nil {
+                    Button("Reset") {
+                        replacementImage = nil
+                        replacementIconName = ""
+                        replacementIconFiles = [:]
+                        iconHint = nil
+                        clearStaleExportState()
+                    }
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundColor(.secondary)
+                    .buttonStyle(.plain)
+                }
+
+                Spacer(minLength: 0)
+            }
+
+            if let iconHint {
+                Text(iconHint)
+                    .font(.caption2)
+                    .foregroundColor(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if !iconSlotText.isEmpty {
+                Text(iconSlotText)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .cardStyle()
+    }
+
+    private var iconSlotText: String {
+        guard let info else {
+            return ""
+        }
+
+        let count = info.iconPlan.slots.count
+
+        if count == 0 {
+            return "No replaceable icon files found."
+        }
+
+        return replacementImage == nil
+            ? "\(count) icon sizes available"
+            : "\(replacementIconFiles.count) icons ready"
+    }
+
+    private var toolsCard: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            sectionTitle(icon: "wrench.and.screwdriver", title: "Tools")
+
+            IPASubtleDivider()
+                .padding(.top, 12)
+
+            IPAToolRow(title: "IPA Info", icon: "info.circle") {
+                activeSheet = .inspector
+            }
+
+            IPASubtleDivider()
+
+            IPAToolRow(title: "Browse Files", icon: "folder") {
+                activeSheet = .browser
+            }
+
+            IPASubtleDivider()
+
+            IPAToolRow(title: "Advanced Info.plist", icon: "list.bullet.rectangle") {
+                activeSheet = .plistEditor
+            }
+
+            IPASubtleDivider()
+
+            IPAToolRow(title: "Compare IPAs", icon: "arrow.left.arrow.right") {
+                activeSheet = .comparison
+            }
+
+            IPASubtleDivider()
+
+            IPAToolRow(title: "Export Presets", icon: "slider.horizontal.3") {
+                activeSheet = .presets
+            }
+        }
+        .cardStyle()
+    }
+
     private var validationCard: some View {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: validationIcon)
-                .foregroundStyle(validationColor)
+                .foregroundColor(validationColor)
 
             Text(currentChangeMessage)
                 .font(.subheadline)
-                .foregroundStyle(validationColor)
+                .foregroundColor(validationColor)
 
             Spacer(minLength: 0)
         }
@@ -798,26 +1196,26 @@ struct ContentView: View {
 
                         Text("\(Int(exportProgress * 100))%")
                             .font(.caption.weight(.bold))
-                            .monospacedDigit()
+                            .ipaidMonospacedDigits()
                     }
 
                     ProgressView(value: exportProgress)
-                        .progressViewStyle(.linear)
+                        .progressViewStyle(LinearProgressViewStyle())
 
                     Text(exportProgressText)
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundColor(.secondary)
                         .lineLimit(1)
                 }
             }
 
             Button {
-                exportUpdatedIPA()
+                requestExport()
             } label: {
                 HStack {
                     if isExporting {
                         ProgressView()
-                            .tint(.white)
+                            .accentColor(.white)
                     } else {
                         Image(systemName: "arrow.down.doc.fill")
                     }
@@ -836,13 +1234,13 @@ struct ContentView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 14)
             }
-            .buttonStyle(.borderedProminent)
+            .ipaidProminentButton()
             .disabled(!canExport)
 
             if !exportSummary.isEmpty {
                 Text(exportSummary)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundColor(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
@@ -858,13 +1256,13 @@ struct ContentView: View {
 
             HStack(spacing: 10) {
                 Image(systemName: "doc.zipper")
-                    .foregroundStyle(.blue)
+                    .foregroundColor(.blue)
 
                 TextField("Exported filename", text: $exportFileName)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
+                    .autocapitalization(.none)
+                    .disableAutocorrection(true)
                     .lineLimit(1)
-                    .onSubmit {
+                    .ipaidOnSubmit {
                         renameExportedIPA()
                     }
 
@@ -876,7 +1274,7 @@ struct ContentView: View {
                     }
                 } label: {
                     Image(systemName: copiedFilename ? "checkmark" : "doc.on.doc")
-                        .foregroundStyle(.blue)
+                        .foregroundColor(.blue)
                 }
                 .buttonStyle(.plain)
             }
@@ -886,12 +1284,12 @@ struct ContentView: View {
             .clipShape(RoundedRectangle(cornerRadius: 10))
 
             Button {
-                showShareSheet = true
+                activeSheet = .share
             } label: {
                 Label("Save / Share IPA", systemImage: "square.and.arrow.up")
                     .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.bordered)
+            .ipaidBorderedButton()
 
             HStack(spacing: 18) {
                 Text("Before: \(formattedFileSize(inputFileSize))")
@@ -899,7 +1297,7 @@ struct ContentView: View {
                 Spacer(minLength: 0)
             }
             .font(.caption)
-            .foregroundStyle(.secondary)
+            .foregroundColor(.secondary)
         }
         .cardStyle()
     }
@@ -910,7 +1308,7 @@ struct ContentView: View {
     ) -> some View {
         HStack(spacing: 8) {
             Image(systemName: icon)
-                .foregroundStyle(.blue)
+                .foregroundColor(.blue)
 
             Text(title)
                 .font(.headline.weight(.bold))
@@ -948,7 +1346,7 @@ struct ContentView: View {
                             : "\(foundExtensions.count - selectedExtensionsToRemove.count) of \(foundExtensions.count) enabled"
                         )
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundColor(.secondary)
                     }
 
                     Spacer()
@@ -961,7 +1359,7 @@ struct ContentView: View {
                     )
                     .font(.caption.bold())
                 }
-                .foregroundStyle(
+                .foregroundColor(
                     selectedExtensionsToRemove.isEmpty
                     ? Color.primary
                     : Color.blue
@@ -1042,7 +1440,7 @@ struct ContentView: View {
                                 ? "circle"
                                 : "checkmark.circle.fill"
                         )
-                        .foregroundStyle(
+                        .foregroundColor(
                             isSelected
                             ? Color.secondary
                             : Color.blue
@@ -1062,7 +1460,7 @@ struct ContentView: View {
                     toggleExtensionInfo(path)
                 } label: {
                     Image(systemName: "info.circle.fill")
-                        .foregroundStyle(.blue)
+                        .foregroundColor(.blue)
                         .frame(width: 40, height: 30)
                 }
                 .buttonStyle(.plain)
@@ -1075,7 +1473,7 @@ struct ContentView: View {
                     )
                 )
                 .font(.caption2)
-                .foregroundStyle(.secondary)
+                .foregroundColor(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(8)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -1134,11 +1532,18 @@ struct ContentView: View {
     }
 
     private func unloadIPA() {
-        showShareSheet = false
+        activeSheet = nil
+
+        session?.clean()
+        session = nil
 
         ipaURL = nil
         originalFileName = ""
-        appInfoPlistPath = nil
+
+        info = nil
+        entries = []
+        originalPlist = [:]
+        errorMessage = nil
 
         currentBundleID = ""
         newBundleID = ""
@@ -1150,6 +1555,19 @@ struct ContentView: View {
         originalURLScheme = ""
         newURLScheme = ""
         urlSchemeExpanded = false
+
+        newVersion = ""
+        newBuild = ""
+        versionExpanded = false
+        versionReferences = []
+
+        originalIconData = nil
+        replacementImage = nil
+        replacementIconName = ""
+        replacementIconFiles = [:]
+        iconHint = nil
+
+        plistOverrides = InfoPlistOverrides()
 
         duplicateMode = false
 
@@ -1184,40 +1602,76 @@ struct ContentView: View {
         status = "Select an IPA to begin."
     }
 
+
     private func handleSelectedFile(_ selected: URL) {
+        errorMessage = nil
+
+        let didAccess = selected.startAccessingSecurityScopedResource()
+        defer {
+            if didAccess {
+                selected.stopAccessingSecurityScopedResource()
+            }
+        }
+
+        guard let newSession = try? IPASession() else {
+            errorMessage = "Import failed: Could not create a temporary workspace."
+            status = "Import failed."
+            return
+        }
+
         do {
-            originalFileName =
-                selected.lastPathComponent
+            let imported = try newSession.importIPA(from: selected)
+            let archive = try IPAArchive(url: imported)
+            let bundle = archive.info
 
-            let temp =
-                FileManager.default.temporaryDirectory
-                    .appendingPathComponent(
-                        UUID().uuidString +
-                        "-" +
-                        selected.lastPathComponent
-                    )
+            session?.clean()
+            session = newSession
 
-            if FileManager.default.fileExists(
-                atPath: temp.path
-            ) {
-                try FileManager.default.removeItem(at: temp)
-            }
+            originalFileName = selected.lastPathComponent
+            ipaURL = imported
+            info = bundle
+            entries = archive.entries
+            originalPlist = archive.infoPlist
 
-            let didAccess =
-                selected.startAccessingSecurityScopedResource()
+            currentBundleID = bundle.bundleIdentifier
+            newBundleID = bundle.bundleIdentifier
 
-            defer {
-                if didAccess {
-                    selected.stopAccessingSecurityScopedResource()
-                }
-            }
+            displayName = bundle.displayName
+            originalDisplayName = bundle.displayName
+            displayNameExpanded = false
 
-            try FileManager.default.copyItem(
-                at: selected,
-                to: temp
-            )
+            originalURLScheme = bundle.urlScheme
+            newURLScheme = bundle.urlScheme
+            urlSchemeExpanded = false
 
-            ipaURL = temp
+            appVersion = bundle.marketingVersion
+            appBuild = bundle.buildNumber
+            newVersion = bundle.marketingVersion
+            newBuild = bundle.buildNumber
+            versionExpanded = false
+            versionReferences = IPAVersionReferenceScanner.scan(archive: archive)
+
+            originalIconData = largestIconData(in: archive, plan: bundle.iconPlan)
+            replacementImage = nil
+            replacementIconName = ""
+            replacementIconFiles = [:]
+            iconHint = nil
+
+            foundExtensions = bundle.extensions.map(\.root)
+            selectedExtensionsToRemove = []
+            extensionsExpanded = false
+            expandedExtensionInfo = nil
+            infoTapLocked = false
+
+            plistOverrides = InfoPlistOverrides()
+
+            copiedFilename = false
+            copiedBundleID = false
+            duplicateMode = false
+
+            exportSummary = ""
+            validationMessage = MetadataValidation.bundleIdentifier(bundle.bundleIdentifier)
+
             exportURL = nil
             exportFileName = ""
             inputFileSize = 0
@@ -1225,463 +1679,205 @@ struct ContentView: View {
             lastExportSignature = nil
 
             rewrittenExtensions = 0
-            selectedExtensionsToRemove = []
 
-            extensionsExpanded = false
-            expandedExtensionInfo = nil
-            infoTapLocked = false
-
-            copiedFilename = false
-            copiedBundleID = false
-
-            exportSummary = ""
-            duplicateMode = false
-
-            let info =
-                try readBundleInfo(from: temp)
-
-            appInfoPlistPath = info.path
-            currentBundleID = info.id
-            newBundleID = info.id
-
-            displayName = info.name
-            originalDisplayName = info.name
-            displayNameExpanded = false
-
-            originalURLScheme = info.urlScheme
-            newURLScheme = info.urlScheme
-            urlSchemeExpanded = false
-
-            foundExtensions = info.extensions
-
-            validationMessage =
-                validateBundleID(info.id)
-
-            appVersion = info.version
-            appBuild = info.build
+            isExporting = false
+            exportProgress = 0
+            exportProgressText = ""
 
             status = ""
-
         } catch {
+            newSession.clean()
+
             UINotificationFeedbackGenerator()
                 .notificationOccurred(.error)
 
-            status = """
-            IPA recommended over ZIP for compatibility.
-
-            Import failed: \(error.localizedDescription)
-            """
+            errorMessage = "Import failed: \(error.localizedDescription)"
+            status = "Import failed."
         }
     }
 
-    private struct BundleInfo {
-        let path: String
-        let id: String
-        let version: String
-        let build: String
-        let name: String
-        let urlScheme: String
-        let extensions: [String]
+    private func largestIconData(in archive: IPAArchive, plan: IPAIconPlan) -> Data? {
+        guard let slot = plan.largestExistingSlot else {
+            return nil
+        }
+
+        return try? archive.data(at: slot.path)
     }
 
-    private func readBundleInfo(
-        from ipa: URL
-    ) throws -> BundleInfo {
-
-        guard let archive =
-            Archive(
-                url: ipa,
-                accessMode: .read
-            ) else {
-            throw SimpleError(
-                "Selected file is not a valid IPA/ZIP archive."
-            )
-        }
-
-        guard let entry =
-            archive.first(where: { entry in
-
-                entry.path.hasPrefix("Payload/") &&
-                entry.path.hasSuffix(".app/Info.plist") &&
-                !entry.path.contains(".appex/")
-            }) else {
-            throw SimpleError(
-                "Could not find Payload/*.app/Info.plist."
-            )
-        }
-
-        let data =
-            try extractData(
-                entry: entry,
-                from: archive
-            )
-
-        let plist =
-            try PropertyListSerialization.propertyList(
-                from: data,
-                options: [],
-                format: nil
-            )
-
-        guard let dict =
-            plist as? [String: Any] else {
-            throw SimpleError(
-                "Invalid Info.plist."
-            )
-        }
-
-        guard let id =
-            dict["CFBundleIdentifier"] as? String else {
-            throw SimpleError(
-                "Info.plist has no CFBundleIdentifier."
-            )
-        }
-
-        let version =
-            dict["CFBundleShortVersionString"] as? String
-            ?? "Unknown"
-
-        let build =
-            dict["CFBundleVersion"] as? String
-            ?? "Unknown"
-
-        let name =
-            dict["CFBundleDisplayName"] as? String
-            ??
-            dict["CFBundleName"] as? String
-            ??
-            ""
-
-        let urlScheme = firstURLScheme(from: dict)
-
-        let extensions =
-            archive
-                .filter {
-                    $0.path.contains(".appex/Info.plist")
-                }
-                .map {
-                    $0.path
-                }
-
-        return BundleInfo(
-            path: entry.path,
-            id: id,
-            version: version,
-            build: build,
-            name: name,
-            urlScheme: urlScheme,
-            extensions: extensions
-        )
-    }
-
-    private func exportUpdatedIPA() {
-        guard !isExporting, hasPendingChanges else {
+    private func applyIcon(_ image: UIImage, name: String) {
+        guard let info else {
             return
         }
+
+        let result = IconRenderer.makeFiles(image: image, plan: info.iconPlan)
+
+        guard !result.files.isEmpty else {
+            errorMessage = result.problems.first ?? "Could not prepare the icon."
+            return
+        }
+
+        replacementImage = image
+        replacementIconName = name
+        replacementIconFiles = result.files
+        iconHint = result.problems.first
+        errorMessage = nil
+        clearStaleExportState()
+    }
+
+    private func loadIconFile(_ url: URL) {
+        let didAccess = url.startAccessingSecurityScopedResource()
+        defer {
+            if didAccess {
+                url.stopAccessingSecurityScopedResource()
+            }
+        }
+
+        guard let data = try? Data(contentsOf: url), let image = UIImage(data: data) else {
+            errorMessage = "The selected image could not be read."
+            return
+        }
+
+        applyIcon(image, name: url.lastPathComponent)
+    }
+
+    private func applyPreset(_ preset: ExportPreset) {
+        guard let info else {
+            return
+        }
+
+        var modifications = currentModifications
+        preset.apply(to: &modifications, availableExtensions: info.extensions)
+
+        newBundleID = modifications.bundleIdentifier
+        displayName = modifications.displayName
+        newURLScheme = modifications.urlScheme
+        newVersion = modifications.marketingVersion
+        newBuild = modifications.buildNumber
+        selectedExtensionsToRemove = modifications.removedExtensions
+        duplicateMode = false
+
+        validationMessage = MetadataValidation.bundleIdentifier(modifications.bundleIdentifier)
+        clearStaleExportState()
+    }
+
+    private func requestExport() {
+        guard let info else {
+            return
+        }
+
+        let problems = currentModifications.problems(comparedTo: info)
+
+        guard problems.isEmpty else {
+            errorMessage = problems[0]
+            return
+        }
+
+        guard currentModifications.hasChanges(from: info) else {
+            return
+        }
+
+        errorMessage = nil
+        activeSheet = .modificationPreview
+    }
+
+    private func performExport() {
+        guard let info, let session, let sourceURL = ipaURL else {
+            return
+        }
+
+        let modifications = currentModifications
+        let problems = modifications.problems(comparedTo: info)
+
+        guard problems.isEmpty else {
+            errorMessage = problems[0]
+            activeSheet = nil
+            return
+        }
+
+        guard modifications.hasChanges(from: info) else {
+            activeSheet = nil
+            return
+        }
+
+        let output: URL
+
+        do {
+            output = try session.outputURL(for: exportBaseName)
+        } catch {
+            errorMessage = "Could not prepare the export folder."
+            activeSheet = nil
+            return
+        }
+
+        let signature = currentSettingsSignature
+        let summary = IPAModificationSummary(
+            info: info,
+            entries: entries,
+            modifications: modifications
+        )
 
         isExporting = true
         exportProgress = 0
         exportProgressText = "Preparing archive…"
         exportURL = nil
         exportSummary = ""
-
-        if let input = ipaURL {
-            inputFileSize = fileSize(of: input)
-        }
+        errorMessage = nil
+        inputFileSize = fileSize(of: sourceURL)
         outputFileSize = 0
 
-        let input = ipaURL
-        let targetPlist = appInfoPlistPath
-
-        let cleanID =
-            newBundleID.trimmingCharacters(
-                in: .whitespacesAndNewlines
-            )
-
-        let shouldRewriteBundleIDs =
-            bundleIDChanged
-
-        let didChangeName =
-            displayNameChanged
-
-        let didChangeURLScheme =
-            urlSchemeChanged
-
-        let cleanScheme =
-            cleanURLScheme
-
-        let removedExtensionCount =
-            selectedExtensionsToRemove.count
-
-        let selectedExtensionRoots =
-            selectedExtensionsToRemove.map {
-                extensionRoot(from: $0)
-            }
-
-        let cleanName =
-            displayName.trimmingCharacters(
-                in: .whitespacesAndNewlines
-            )
-
-        let originalName =
-            originalFileName
-
-        let settingsSignature = currentSettingsSignature
-
         DispatchQueue.global(qos: .userInitiated).async {
-
             do {
-                guard let input else {
-                    throw SimpleError("No IPA selected.")
-                }
+                var lastPercent = -1
 
-                guard let targetPlist else {
-                    throw SimpleError(
-                        "No Info.plist path found."
-                    )
-                }
+                let result = try IPAExporter.export(
+                    IPAExportRequest(
+                        sourceURL: sourceURL,
+                        outputURL: output,
+                        modifications: modifications
+                    ),
+                    progress: { progress, text in
+                        let percent = Int(progress * 100)
 
-                let validation =
-                    validateBundleID(cleanID)
+                        guard percent != lastPercent else {
+                            return
+                        }
 
-                guard validation.isEmpty else {
-                    throw SimpleError(validation)
-                }
+                        lastPercent = percent
 
-                let schemeValidation = validateURLScheme(cleanScheme)
-                guard schemeValidation.isEmpty else {
-                    throw SimpleError(schemeValidation)
-                }
-
-                guard let inputArchive =
-                    Archive(
-                        url: input,
-                        accessMode: .read
-                    ) else {
-                    throw SimpleError(
-                        "Could not reopen IPA."
-                    )
-                }
-
-                let entries =
-                    Array(inputArchive)
-
-                let files =
-                    entries.filter {
-                        $0.type != .directory
+                        DispatchQueue.main.async {
+                            exportProgress = progress
+                            exportProgressText = text
+                        }
                     }
-
-                let output =
-                    makeReadableOutputURL(
-                        input: input,
-                        originalName: originalName
-                    )
-
-                guard let outputArchive =
-                    Archive(
-                        url: output,
-                        accessMode: .create
-                    ) else {
-                    throw SimpleError(
-                        "Could not create output IPA."
-                    )
-                }
-
-                var rewrittenCount = 0
-                var processed = 0
-
-                for entry in files {
-
-                    if selectedExtensionRoots.contains(
-                        where: {
-                            entry.path.hasPrefix($0)
-                        }
-                    ) {
-                        processed += 1
-
-                        updateExportProgress(
-                            progress:
-                                Double(processed) /
-                                Double(max(files.count, 1)),
-                            text: "Removing extension…"
-                        )
-
-                        continue
-                    }
-
-                    var data =
-                        try extractData(
-                            entry: entry,
-                            from: inputArchive
-                        )
-
-                    let isMainInfoPlist =
-                        entry.path == targetPlist
-
-                    let isExtensionInfoPlist =
-                        entry.path.hasSuffix("Info.plist") &&
-                        entry.path.contains(".appex/")
-
-                    if isMainInfoPlist ||
-                        isExtensionInfoPlist {
-
-                        let plist =
-                            try PropertyListSerialization
-                                .propertyList(
-                                    from: data,
-                                    options: [],
-                                    format: nil
-                                )
-
-                        guard var dict =
-                            plist as? [String: Any] else {
-                            throw SimpleError(
-                                "Could not edit Info.plist."
-                            )
-                        }
-
-                        if isMainInfoPlist {
-
-                            dict["CFBundleIdentifier"] =
-                                cleanID
-
-                            if !cleanName.isEmpty {
-                                dict["CFBundleDisplayName"] =
-                                    cleanName
-
-                                dict["CFBundleName"] =
-                                    cleanName
-                            }
-
-                            if didChangeURLScheme {
-                                updateURLScheme(in: &dict, scheme: cleanScheme, bundleID: cleanID)
-                            }
-
-                        } else if shouldRewriteBundleIDs {
-
-                            if let oldID =
-                                dict["CFBundleIdentifier"]
-                                as? String {
-
-                                let lastComponent =
-                                    oldID
-                                        .split(
-                                            separator: "."
-                                        )
-                                        .last
-                                        ?? ""
-
-                                dict["CFBundleIdentifier"] =
-                                    cleanID +
-                                    "." +
-                                    lastComponent
-
-                                rewrittenCount += 1
-                            }
-                        }
-
-                        data =
-                            try PropertyListSerialization
-                                .data(
-                                    fromPropertyList: dict,
-                                    format: .xml,
-                                    options: 0
-                                )
-                    }
-
-                    try outputArchive.addEntry(
-                        with: entry.path,
-                        type: .file,
-                        uncompressedSize:
-                            Int64(data.count),
-                        compressionMethod: .deflate,
-                        provider: {
-                            position,
-                            size -> Data in
-
-                            let start =
-                                Int(position)
-
-                            let end =
-                                min(
-                                    start + size,
-                                    data.count
-                                )
-
-                            guard start < end else {
-                                return Data()
-                            }
-
-                            return data.subdata(
-                                in: start..<end
-                            )
-                        }
-                    )
-
-                    processed += 1
-
-                    updateExportProgress(
-                        progress:
-                            Double(processed) /
-                            Double(max(files.count, 1)),
-                        text:
-                            "Compressing \(processed) of \(files.count)…"
-                    )
-                }
+                )
 
                 DispatchQueue.main.async {
-
-                    rewrittenExtensions =
-                        rewrittenCount
-
-                    exportURL = output
-                    exportFileName = output.lastPathComponent
-                    inputFileSize = fileSize(of: input)
-                    outputFileSize = fileSize(of: output)
-                    lastExportSignature = settingsSignature
-
-                    exportSummary =
-                        makeExportSummary(
-                            bundleIDChanged:
-                                shouldRewriteBundleIDs,
-                            displayNameChanged:
-                                didChangeName,
-                            urlSchemeChanged:
-                                didChangeURLScheme,
-                            removedExtensions:
-                                removedExtensionCount,
-                            rewrittenExtensions:
-                                rewrittenCount
-                        )
+                    exportURL = result.outputURL
+                    exportFileName = result.outputURL.lastPathComponent
+                    inputFileSize = fileSize(of: sourceURL)
+                    outputFileSize = result.fileSize
+                    lastExportSignature = signature
+                    exportSummary = exportSummaryText(summary)
 
                     extensionsExpanded = false
                     expandedExtensionInfo = nil
 
                     exportProgress = 1
-                    exportProgressText =
-                        "Export complete."
-
+                    exportProgressText = "Export complete."
                     isExporting = false
-
-                    status =
-                        "Export complete. Original file was not replaced."
+                    status = "Export complete. Original file was not replaced."
 
                     UINotificationFeedbackGenerator()
                         .notificationOccurred(.success)
                 }
-
             } catch {
-
                 DispatchQueue.main.async {
-
                     isExporting = false
                     exportProgress = 0
                     exportProgressText = ""
-
                     exportSummary = ""
-
-                    status =
-                        "Export failed: \(error.localizedDescription)"
+                    errorMessage = "Export failed: \(error.localizedDescription)"
+                    status = "Export failed."
 
                     UINotificationFeedbackGenerator()
                         .notificationOccurred(.error)
@@ -1689,6 +1885,25 @@ struct ContentView: View {
             }
         }
     }
+
+    private var exportBaseName: String {
+        let name = originalFileName.isEmpty
+            ? "IPA"
+            : URL(fileURLWithPath: originalFileName).deletingPathExtension().lastPathComponent
+
+        return "\(name)-ipaid.ipa"
+    }
+
+    private func exportSummaryText(_ summary: IPAModificationSummary) -> String {
+        let labels = summary.changes.map(\.label)
+
+        guard !labels.isEmpty else {
+            return ""
+        }
+
+        return "Applied: " + labels.joined(separator: " • ")
+    }
+
 
     private func updateExportProgress(
         progress: Double,
@@ -1702,104 +1917,6 @@ struct ContentView: View {
         }
     }
 
-    private func makeReadableOutputURL(
-        input: URL,
-        originalName: String
-    ) -> URL {
-
-        let baseName: String
-
-        if !originalName.isEmpty {
-
-            baseName =
-                URL(fileURLWithPath: originalName)
-                    .deletingPathExtension()
-                    .lastPathComponent
-
-        } else {
-
-            baseName =
-                input
-                    .deletingPathExtension()
-                    .lastPathComponent
-        }
-
-        let folder =
-            FileManager.default.temporaryDirectory
-
-        var version = 1
-
-        var candidate =
-            folder.appendingPathComponent(
-                "\(baseName)-bid\(version).ipa"
-            )
-
-        while FileManager.default.fileExists(
-            atPath: candidate.path
-        ) {
-
-            version += 1
-
-            candidate =
-                folder.appendingPathComponent(
-                    "\(baseName)-bid\(version).ipa"
-                )
-        }
-
-        return candidate
-    }
-
-    private func validateURLScheme(_ scheme: String) -> String {
-        let clean = scheme.trimmingCharacters(in: .whitespacesAndNewlines)
-        if clean.isEmpty {
-            return originalURLScheme.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                ? ""
-                : "URL scheme cannot be empty."
-        }
-        if clean.count > 100 {
-            return "URL scheme is too long."
-        }
-        if clean.contains("://") || clean.contains("/") || clean.contains(" ") {
-            return "URL scheme contains invalid characters."
-        }
-        let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+.-")
-        if clean.rangeOfCharacter(from: allowed.inverted) != nil {
-            return "URL scheme contains invalid characters."
-        }
-        guard let first = clean.first,
-              first.isLetter else {
-            return "URL scheme must start with a letter."
-        }
-        return ""
-    }
-
-    private func firstURLScheme(from dict: [String: Any]) -> String {
-        guard let types = dict["CFBundleURLTypes"] as? [[String: Any]] else { return "" }
-        for type in types {
-            if let schemes = type["CFBundleURLSchemes"] as? [String],
-               let first = schemes.first {
-                return first
-            }
-        }
-        return ""
-    }
-
-    private func updateURLScheme(in dict: inout [String: Any], scheme: String, bundleID: String) {
-        if var types = dict["CFBundleURLTypes"] as? [[String: Any]], !types.isEmpty {
-            if var schemes = types[0]["CFBundleURLSchemes"] as? [String], !schemes.isEmpty {
-                schemes[0] = scheme
-                types[0]["CFBundleURLSchemes"] = schemes
-            } else {
-                types[0]["CFBundleURLSchemes"] = [scheme]
-            }
-            dict["CFBundleURLTypes"] = types
-        } else {
-            dict["CFBundleURLTypes"] = [[
-                "CFBundleURLName": bundleID,
-                "CFBundleURLSchemes": [scheme]
-            ]]
-        }
-    }
 
     private func fileSize(of url: URL) -> Int64 {
         guard let values = try? url.resourceValues(forKeys: [.fileSizeKey]),
@@ -1840,103 +1957,6 @@ struct ContentView: View {
         }
     }
 
-    private func validateBundleID(
-        _ id: String
-    ) -> String {
-
-        let clean =
-            id.trimmingCharacters(
-                in: .whitespacesAndNewlines
-            )
-
-        if clean.isEmpty {
-            return "Bundle ID cannot be empty."
-        }
-
-        if clean.count > 120 {
-            return "Bundle ID is too long."
-        }
-
-        if !clean.contains(".") {
-            return "Bundle ID must contain at least one dot."
-        }
-
-        if clean.contains("..") {
-            return "Bundle ID cannot contain two dots in a row."
-        }
-
-        let allowed =
-            CharacterSet(
-                charactersIn:
-                    "abcdefghijklmnopqrstuvwxyz" +
-                    "ABCDEFGHIJKLMNOPQRSTUVWXYZ" +
-                    "0123456789.-"
-            )
-
-        if clean.rangeOfCharacter(
-            from: allowed.inverted
-        ) != nil {
-            return "Bundle ID contains invalid characters."
-        }
-
-        if clean.hasPrefix(".") ||
-            clean.hasSuffix(".") {
-
-            return "Bundle ID cannot start or end with a dot."
-        }
-
-        return ""
-    }
-
-    private func makeExportSummary(
-        bundleIDChanged: Bool,
-        displayNameChanged: Bool,
-        urlSchemeChanged: Bool,
-        removedExtensions: Int,
-        rewrittenExtensions: Int
-    ) -> String {
-
-        var changes: [String] = []
-
-        if bundleIDChanged {
-            changes.append("Bundle ID changed")
-        }
-
-        if displayNameChanged {
-            changes.append("Display name changed")
-        }
-
-        if urlSchemeChanged {
-            changes.append("URL scheme changed")
-        }
-
-        if removedExtensions == 1 {
-            changes.append("1 extension removed")
-
-        } else if removedExtensions > 1 {
-            changes.append(
-                "\(removedExtensions) extensions removed"
-            )
-        }
-
-        if rewrittenExtensions == 1 {
-            changes.append(
-                "1 extension ID rewritten"
-            )
-
-        } else if rewrittenExtensions > 1 {
-            changes.append(
-                "\(rewrittenExtensions) extension IDs rewritten"
-            )
-        }
-
-        guard !changes.isEmpty else {
-            return ""
-        }
-
-        return "Applied: " +
-            changes.joined(separator: " • ")
-    }
 
     private func clearStaleExportState() {
 
@@ -2139,38 +2159,7 @@ struct ContentView: View {
         return "App extension component. Removing it can reduce signing/App ID usage, but some app features may stop working."
     }
 
-    private func extensionRoot(
-        from infoPlistPath: String
-    ) -> String {
 
-        guard let range =
-            infoPlistPath.range(
-                of: ".appex/"
-            ) else {
-            return infoPlistPath
-        }
-
-        return String(
-            infoPlistPath[
-                ..<range.upperBound
-            ]
-        )
-    }
-
-    private func extractData(
-        entry: Entry,
-        from archive: Archive
-    ) throws -> Data {
-
-        var data = Data()
-
-        _ = try archive.extract(entry) {
-            chunk in
-            data.append(chunk)
-        }
-
-        return data
-    }
 }
 
 
@@ -2240,7 +2229,7 @@ private struct InfoView: View {
             infoRow(title: "Support Me", icon: "heart") {
                 UIApplication.shared.open(supportURL)
             }
-            .foregroundStyle(.primary)
+            .foregroundColor(.primary)
 
             subtleDivider
                 .padding(.top, 6)
@@ -2268,12 +2257,12 @@ private struct InfoView: View {
 
             Text("Developed by shplash")
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundColor(.secondary)
                 .padding(.top, 12)
 
             Text("Built with SwiftUI and ZIPFoundation")
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundColor(.secondary)
                 .padding(.top, 2)
 
             subtleDivider
@@ -2283,7 +2272,7 @@ private struct InfoView: View {
         .padding(.horizontal, 20)
         .padding(.vertical, 28)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(uiColor: .secondarySystemGroupedBackground))
+        .background(Color(UIColor.secondarySystemGroupedBackground))
         .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 
@@ -2305,7 +2294,7 @@ private struct InfoView: View {
         } label: {
             Text(title)
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(appearanceMode == value ? .primary : .secondary)
+                .foregroundColor(appearanceMode == value ? .primary : .secondary)
                 .frame(maxWidth: .infinity)
                 .frame(height: 42)
                 .background(
@@ -2331,7 +2320,7 @@ private struct InfoView: View {
         HStack(spacing: 11) {
             Image(systemName: icon)
                 .font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(.blue)
+                .foregroundColor(.blue)
                 .frame(width: 26)
 
             Text(title)
@@ -2349,22 +2338,22 @@ private struct InfoView: View {
             HStack(spacing: 13) {
                 Image(systemName: icon)
                     .font(.system(size: 17, weight: .medium))
-                    .foregroundStyle((title == "GitHub" || title == "Check for Updates" || title == "Report a Bug" || title == "Request a Feature" || title == "Support Me") ? Color.primary : Color.blue)
+                    .foregroundColor((title == "GitHub" || title == "Check for Updates" || title == "Report a Bug" || title == "Request a Feature" || title == "Support Me") ? Color.primary : Color.blue)
                     .frame(width: 26)
 
                 Text(title)
                     .font(.body)
-                    .foregroundStyle(.primary)
+                    .foregroundColor(.primary)
 
                 Spacer()
 
                 if trailingProgress {
                     ProgressView()
-                        .controlSize(.small)
+                        .ipaidSmallControl()
                 } else {
                     Image(systemName: "chevron.right")
                         .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(.tertiary)
+                        .foregroundColor(Color.secondary.opacity(0.55))
                 }
             }
             .contentShape(Rectangle())
@@ -2378,52 +2367,49 @@ private struct InfoView: View {
 
         isCheckingForUpdate = true
 
-        Task {
-            do {
-                var request = URLRequest(
-                    url: URL(string: "https://api.github.com/repos/shplash/IPAID/releases/latest")!
-                )
-                request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
-                request.setValue("IPAID", forHTTPHeaderField: "User-Agent")
+        var request = URLRequest(
+            url: URL(string: "https://api.github.com/repos/shplash/IPAID/releases/latest")!
+        )
+        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        request.setValue("IPAID", forHTTPHeaderField: "User-Agent")
 
-                let (data, response) = try await URLSession.shared.data(for: request)
-
-                guard let httpResponse = response as? HTTPURLResponse,
-                      200..<300 ~= httpResponse.statusCode else {
-                    throw UpdateCheckError.invalidResponse
-                }
-
-                let release = try JSONDecoder().decode(GitHubRelease.self, from: data)
-                let latestVersion = release.tagName
-                    .trimmingCharacters(in: CharacterSet(charactersIn: "vV"))
-
-                await MainActor.run {
-                    isCheckingForUpdate = false
-
-                    if compareVersions(latestVersion, currentVersion) > 0,
-                       let url = URL(string: release.htmlURL) {
-                        updateAlert = UpdateAlert(
-                            title: "Update Available",
-                            message: "IPAID \(latestVersion) is available. You're running \(currentVersion).",
-                            url: url
-                        )
-                    } else {
-                        updateAlert = UpdateAlert(
-                            title: "You're Up to Date",
-                            message: "IPAID \(currentVersion) is the latest release."
-                        )
-                    }
-                }
-            } catch {
-                await MainActor.run {
+        URLSession.shared.dataTask(with: request) { data, response, _ in
+            guard let data,
+                  let httpResponse = response as? HTTPURLResponse,
+                  200..<300 ~= httpResponse.statusCode,
+                  let release = try? JSONDecoder().decode(GitHubRelease.self, from: data) else {
+                DispatchQueue.main.async {
                     isCheckingForUpdate = false
                     updateAlert = UpdateAlert(
                         title: "Couldn't Check for Updates",
                         message: "Please check your internet connection and try again."
                     )
                 }
+                return
+            }
+
+            let latestVersion = release.tagName
+                .trimmingCharacters(in: CharacterSet(charactersIn: "vV"))
+
+            DispatchQueue.main.async {
+                isCheckingForUpdate = false
+
+                if compareVersions(latestVersion, currentVersion) > 0,
+                   let url = URL(string: release.htmlURL) {
+                    updateAlert = UpdateAlert(
+                        title: "Update Available",
+                        message: "IPAID \(latestVersion) is available. You're running \(currentVersion).",
+                        url: url
+                    )
+                } else {
+                    updateAlert = UpdateAlert(
+                        title: "You're Up to Date",
+                        message: "IPAID \(currentVersion) is the latest release."
+                    )
+                }
             }
         }
+        .resume()
     }
 
     private func compareVersions(_ lhs: String, _ rhs: String) -> Int {
@@ -2474,33 +2460,6 @@ private struct UpdateAlert: Identifiable {
     }
 }
 
-private enum UpdateCheckError: Error {
-    case invalidResponse
-}
-
-private extension View {
-    func cardStyle() -> some View {
-        self
-            .padding(15)
-            .frame(
-                maxWidth: .infinity,
-                alignment: .leading
-            )
-            .background(
-                Color(
-                    uiColor:
-                        .secondarySystemGroupedBackground
-                )
-            )
-            .clipShape(
-                RoundedRectangle(
-                    cornerRadius: 17,
-                    style: .continuous
-                )
-            )
-    }
-}
-
 struct ActivityView:
     UIViewControllerRepresentable {
 
@@ -2526,10 +2485,20 @@ struct DocumentPicker:
     UIViewControllerRepresentable {
 
     let onPick: (URL) -> Void
+    let onCancel: (() -> Void)?
+
+    init(
+        onPick: @escaping (URL) -> Void,
+        onCancel: (() -> Void)? = nil
+    ) {
+        self.onPick = onPick
+        self.onCancel = onCancel
+    }
 
     func makeCoordinator() -> Coordinator {
         Coordinator(
-            onPick: onPick
+            onPick: onPick,
+            onCancel: onCancel
         )
     }
 
@@ -2559,11 +2528,14 @@ struct DocumentPicker:
         UIDocumentPickerDelegate {
 
         let onPick: (URL) -> Void
+        let onCancel: (() -> Void)?
 
         init(
-            onPick: @escaping (URL) -> Void
+            onPick: @escaping (URL) -> Void,
+            onCancel: (() -> Void)?
         ) {
             self.onPick = onPick
+            self.onCancel = onCancel
         }
 
         func documentPicker(
@@ -2576,6 +2548,12 @@ struct DocumentPicker:
             }
 
             onPick(url)
+        }
+
+        func documentPickerWasCancelled(
+            _ controller: UIDocumentPickerViewController
+        ) {
+            onCancel?()
         }
     }
 }
@@ -2593,5 +2571,22 @@ struct SimpleError:
 
     var errorDescription: String? {
         message
+    }
+}
+
+private enum ActiveSheet: String, Identifiable {
+    case picker
+    case share
+    case inspector
+    case browser
+    case plistEditor
+    case comparison
+    case presets
+    case modificationPreview
+    case iconPhotos
+    case iconFiles
+
+    var id: String {
+        rawValue
     }
 }
