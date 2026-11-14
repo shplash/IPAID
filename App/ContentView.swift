@@ -1699,6 +1699,11 @@ struct ContentView: View {
             return
         }
 
+        guard !plan.slots.isEmpty else {
+            errorMessage = "No replaceable icon files were found in this IPA."
+            return
+        }
+
         DispatchQueue.global(qos: .userInitiated).async {
             let result = IconRenderer.makeFiles(image: image, plan: plan)
 
