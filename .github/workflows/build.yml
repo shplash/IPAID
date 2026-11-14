@@ -3,6 +3,9 @@ name: Build IPA
 on:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: macos-15
@@ -51,9 +54,26 @@ jobs:
           cp -r build/Build/Products/Release-iphoneos/IPAID.app Payload/
           zip -qry IPAID.ipa Payload
 
-      - name: Upload IPA
-        uses: actions/upload-artifact@v7
-        with:
-          name: IPAID
-          path: IPAID.ipa
-          retention-days: 7
+      - name: Attach the IPA to the private build draft
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          PLIST="build/Build/Products/Release-iphoneos/IPAID.app/Info.plist"
+          VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$PLIST")
+          BUILD=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$PLIST")
+          TAG="builds"
+          if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$TAG" --draft \
+              --title "IPAID builds" \
+              --notes "Draft release holding CI builds. It is never published, so only people with write access can see it." \
+              --repo "$GITHUB_REPOSITORY"
+          fi
+          cp IPAID.ipa "IPAID-$VERSION-$BUILD.ipa"
+          gh release upload "$TAG" "IPAID-$VERSION-$BUILD.ipa" --clobber --repo "$GITHUB_REPOSITORY"
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' |
+            while read -r asset; do
+              [ -z "$asset" ] && continue
+              [ "$asset" = "IPAID-$VERSION-$BUILD.ipa" ] && continue
+              gh release delete-asset "$TAG" "$asset" --yes --repo "$GITHUB_REPOSITORY" || true
+            done

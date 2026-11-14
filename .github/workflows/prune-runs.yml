@@ -1,0 +1,49 @@
+name: Prune workflow runs
+
+on:
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: prune-runs
+  cancel-in-progress: false
+
+jobs:
+  prune:
+    name: Keep the two newest runs, delete the rest
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Delete all but the two newest runs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          gh api --paginate "repos/$REPO/actions/runs?per_page=100" \
+            --jq '.workflow_runs[] | [.id, .status, .created_at] | @tsv' \
+            | sort -k3 -r > runs.tsv
+
+          total=$(wc -l < runs.tsv | tr -d ' ')
+          if [ "$total" -le 2 ]; then
+            echo "Only $total run(s); nothing to delete."
+            exit 0
+          fi
+
+          kept=$(head -n2 runs.tsv | cut -f1 | tr '\n' ' ')
+          echo "Keeping runs $kept (newest two of $total)."
+
+          tail -n +3 runs.tsv | while IFS=$'\t' read -r id status created; do
+            if [ "$status" != "completed" ]; then
+              echo "Skipping $id: $status"
+              continue
+            fi
+            echo "Deleting $id ($created, $status)"
+            gh api -X DELETE "repos/$REPO/actions/runs/$id" >/dev/null || echo "  could not delete $id"
+          done
+
+          echo "Done."
