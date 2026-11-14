@@ -21,18 +21,23 @@ jobs:
         run: |
           ICON_DIR="App/Assets.xcassets/AppIcon.appiconset"
           SRC="$ICON_DIR/AppIconSource.png"
+          CROP="$RUNNER_TEMP/icon-crop.png"
+          BASE="$RUNNER_TEMP/icon-base.png"
 
           rm -f "$ICON_DIR"/Icon-*.png
 
-          sips -z 40 40 "$SRC" --out "$ICON_DIR/Icon-20@2x.png"
-          sips -z 60 60 "$SRC" --out "$ICON_DIR/Icon-20@3x.png"
-          sips -z 58 58 "$SRC" --out "$ICON_DIR/Icon-29@2x.png"
-          sips -z 87 87 "$SRC" --out "$ICON_DIR/Icon-29@3x.png"
-          sips -z 80 80 "$SRC" --out "$ICON_DIR/Icon-40@2x.png"
-          sips -z 120 120 "$SRC" --out "$ICON_DIR/Icon-40@3x.png"
-          sips -z 120 120 "$SRC" --out "$ICON_DIR/Icon-60@2x.png"
-          sips -z 180 180 "$SRC" --out "$ICON_DIR/Icon-60@3x.png"
-          sips -z 1024 1024 "$SRC" --out "$ICON_DIR/Icon-1024.png"
+          sips --cropToHeightWidth 800 800 "$SRC" --out "$CROP" >/dev/null
+          sips -z 1024 1024 "$CROP" --out "$BASE" >/dev/null
+
+          sips -z 40 40 "$BASE" --out "$ICON_DIR/Icon-20@2x.png"
+          sips -z 60 60 "$BASE" --out "$ICON_DIR/Icon-20@3x.png"
+          sips -z 58 58 "$BASE" --out "$ICON_DIR/Icon-29@2x.png"
+          sips -z 87 87 "$BASE" --out "$ICON_DIR/Icon-29@3x.png"
+          sips -z 80 80 "$BASE" --out "$ICON_DIR/Icon-40@2x.png"
+          sips -z 120 120 "$BASE" --out "$ICON_DIR/Icon-40@3x.png"
+          sips -z 120 120 "$BASE" --out "$ICON_DIR/Icon-60@2x.png"
+          sips -z 180 180 "$BASE" --out "$ICON_DIR/Icon-60@3x.png"
+          sips -z 1024 1024 "$BASE" --out "$ICON_DIR/Icon-1024.png"
 
       - name: Generate Xcode Project
         run: xcodegen generate
@@ -77,3 +82,6 @@ jobs:
               [ "$asset" = "IPAID-$VERSION-$BUILD.ipa" ] && continue
               gh release delete-asset "$TAG" "$asset" --yes --repo "$GITHUB_REPOSITORY" || true
             done
+
+      - name: Test the core
+        run: swift test

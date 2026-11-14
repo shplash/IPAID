@@ -71,10 +71,12 @@ struct ContentView: View {
     @State private var replacementIconName = ""
     @State private var replacementIconFiles: [String: Data] = [:]
     @State private var iconHint: String?
+    @State private var iconExpanded = false
 
     @State private var plistOverrides = InfoPlistOverrides()
 
     @State private var errorMessage: String?
+    @State private var isImporting = false
 
     private var cleanNewBundleID: String {
         newBundleID.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -213,6 +215,7 @@ struct ContentView: View {
     private var canExport: Bool {
         info != nil &&
         !isExporting &&
+        !isImporting &&
         currentValidationTone != .red &&
         hasPendingChanges
     }
@@ -432,6 +435,22 @@ struct ContentView: View {
                     fileInfoSection
                 }
 
+                if isImporting {
+                    HStack(spacing: 10) {
+                        ProgressView()
+                            .scaleEffect(0.8)
+
+                        Text("Reading IPA…")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+
+                        Spacer(minLength: 0)
+                    }
+                    .padding(13)
+                    .background(Color.secondary.opacity(0.08))
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                }
+
                 if let errorMessage {
                     IPAInfoBanner(message: errorMessage, color: .red)
                 }
@@ -631,12 +650,12 @@ struct ContentView: View {
                 Spacer()
 
                 VStack(alignment: .trailing, spacing: 3) {
-                    if !newVersion.isEmpty {
-                        Text("v\(newVersion)")
+                    if !appVersion.isEmpty {
+                        Text("v\(appVersion)")
                             .font(.subheadline.weight(.semibold))
                     }
 
-                    Text("Build \(newBuild.isEmpty ? "Unknown" : newBuild)")
+                    Text("Build \(appBuild.isEmpty ? "Unknown" : appBuild)")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -788,24 +807,12 @@ struct ContentView: View {
                     displayNameExpanded.toggle()
                 }
             } label: {
-                HStack {
-                    Image(systemName: "textformat")
-                        .foregroundColor(.blue)
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Display Name")
-                            .font(.headline.weight(.bold))
-                        Text(cleanDisplayName.isEmpty ? "No name" : cleanDisplayName)
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                            .lineLimit(1)
-                    }
-
-                    Spacer()
-                    Image(systemName: displayNameExpanded ? "chevron.up" : "chevron.down")
-                        .font(.caption.bold())
-                }
-                .foregroundColor(.primary)
+                IPACardHeader(
+                    icon: "textformat",
+                    title: "Display Name",
+                    subtitle: cleanDisplayName.isEmpty ? "No name" : cleanDisplayName,
+                    isExpanded: displayNameExpanded
+                )
             }
             .buttonStyle(.plain)
 
@@ -859,24 +866,12 @@ struct ContentView: View {
                     urlSchemeExpanded.toggle()
                 }
             } label: {
-                HStack {
-                    Image(systemName: "link")
-                        .foregroundColor(.blue)
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("URL Scheme")
-                            .font(.headline.weight(.bold))
-                        Text(cleanURLScheme.isEmpty ? "None" : cleanURLScheme)
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                            .lineLimit(1)
-                    }
-
-                    Spacer()
-                    Image(systemName: urlSchemeExpanded ? "chevron.up" : "chevron.down")
-                        .font(.caption.bold())
-                }
-                .foregroundColor(.primary)
+                IPACardHeader(
+                    icon: "link",
+                    title: "URL Scheme",
+                    subtitle: cleanURLScheme.isEmpty ? "None" : cleanURLScheme,
+                    isExpanded: urlSchemeExpanded
+                )
             }
             .buttonStyle(.plain)
 
@@ -919,26 +914,12 @@ struct ContentView: View {
                     versionExpanded.toggle()
                 }
             } label: {
-                HStack {
-                    Image(systemName: "number")
-                        .foregroundColor(.blue)
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Version")
-                            .font(.headline.weight(.bold))
-
-                        Text(versionSubtitle)
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                            .lineLimit(1)
-                    }
-
-                    Spacer()
-
-                    Image(systemName: versionExpanded ? "chevron.up" : "chevron.down")
-                        .font(.caption.bold())
-                }
-                .foregroundColor(.primary)
+                IPACardHeader(
+                    icon: "number",
+                    title: "Version",
+                    subtitle: versionSubtitle,
+                    isExpanded: versionExpanded
+                )
             }
             .buttonStyle(.plain)
 
@@ -975,8 +956,13 @@ struct ContentView: View {
     }
 
     private var versionSubtitle: String {
-        let version = cleanVersion.isEmpty ? "Unknown" : cleanVersion
-        let build = cleanBuild.isEmpty ? "Unknown" : cleanBuild
+        let version = cleanVersion.isEmpty
+            ? (appVersion.isEmpty ? "Unknown" : appVersion)
+            : cleanVersion
+        let build = cleanBuild.isEmpty
+            ? (appBuild.isEmpty ? "Unknown" : appBuild)
+            : cleanBuild
+
         return "\(version) (\(build))"
     }
 
@@ -1033,68 +1019,92 @@ struct ContentView: View {
     }
 
     private var iconCard: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            sectionTitle(icon: "photo", title: "App Icon")
-
-            HStack(spacing: 14) {
-                IPAIconThumbnail(image: originalIconImage, caption: "Original", size: 62)
-
-                Image(systemName: "arrow.right")
-                    .font(.caption.weight(.semibold))
-                    .foregroundColor(.secondary)
-
-                IPAIconThumbnail(image: replacementImage, caption: "Replacement", size: 62)
-
-                Spacer(minLength: 0)
+        VStack(alignment: .leading, spacing: 12) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    iconExpanded.toggle()
+                }
+            } label: {
+                IPACardHeader(
+                    icon: "photo",
+                    title: "App Icon",
+                    subtitle: iconSubtitle,
+                    isExpanded: iconExpanded
+                )
             }
+            .buttonStyle(.plain)
 
-            HStack(spacing: 10) {
-                Button {
-                    activeSheet = .iconPhotos
-                } label: {
-                    Label("Photos", systemImage: "photo")
-                        .font(.subheadline.weight(.semibold))
+            if iconExpanded {
+                HStack(spacing: 14) {
+                    IPAIconThumbnail(image: originalIconImage, caption: "Original", size: 62)
+
+                    Image(systemName: "arrow.right")
+                        .font(.caption.weight(.semibold))
+                        .foregroundColor(.secondary)
+
+                    IPAIconThumbnail(image: replacementImage, caption: "Replacement", size: 62)
+
+                    Spacer(minLength: 0)
                 }
-                .ipaidBorderedButton()
 
-                Button {
-                    activeSheet = .iconFiles
-                } label: {
-                    Label("Files", systemImage: "folder")
-                        .font(.subheadline.weight(.semibold))
-                }
-                .ipaidBorderedButton()
-
-                if replacementImage != nil {
-                    Button("Reset") {
-                        replacementImage = nil
-                        replacementIconName = ""
-                        replacementIconFiles = [:]
-                        iconHint = nil
-                        clearStaleExportState()
+                HStack(spacing: 10) {
+                    Button {
+                        activeSheet = .iconPhotos
+                    } label: {
+                        Label("Photos", systemImage: "photo")
+                            .font(.subheadline.weight(.semibold))
                     }
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundColor(.secondary)
-                    .buttonStyle(.plain)
+                    .ipaidBorderedButton()
+
+                    Button {
+                        activeSheet = .iconFiles
+                    } label: {
+                        Label("Files", systemImage: "folder")
+                            .font(.subheadline.weight(.semibold))
+                    }
+                    .ipaidBorderedButton()
+
+                    if replacementImage != nil {
+                        Button("Reset", action: resetIcon)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundColor(.secondary)
+                            .buttonStyle(.plain)
+                    }
+
+                    Spacer(minLength: 0)
                 }
 
-                Spacer(minLength: 0)
-            }
+                if let iconHint {
+                    Text(iconHint)
+                        .font(.caption2)
+                        .foregroundColor(.orange)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
 
-            if let iconHint {
-                Text(iconHint)
-                    .font(.caption2)
-                    .foregroundColor(.orange)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            if !iconSlotText.isEmpty {
-                Text(iconSlotText)
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
+                if !iconSlotText.isEmpty {
+                    Text(iconSlotText)
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
             }
         }
         .cardStyle()
+    }
+
+    private var iconSubtitle: String {
+        guard replacementImage != nil else {
+            return "Original"
+        }
+
+        return replacementIconName.isEmpty ? "Replacement ready" : replacementIconName
+    }
+
+    private func resetIcon() {
+        replacementImage = nil
+        replacementIconName = ""
+        replacementIconFiles = [:]
+        iconHint = nil
+        clearStaleExportState()
     }
 
     private var iconSlotText: String {
@@ -1306,13 +1316,7 @@ struct ContentView: View {
         icon: String,
         title: String
     ) -> some View {
-        HStack(spacing: 8) {
-            Image(systemName: icon)
-                .foregroundColor(.blue)
-
-            Text(title)
-                .font(.headline.weight(.bold))
-        }
+        IPASectionTitle(icon: icon, title: title)
     }
 
     private var extensionRemovalSection: some View {
@@ -1328,41 +1332,15 @@ struct ContentView: View {
                     }
                 }
             } label: {
-                HStack {
-                    Image(
-                        systemName:
-                            selectedExtensionsToRemove.isEmpty
-                            ? "puzzlepiece.extension"
-                            : "checkmark.circle.fill"
-                    )
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Extensions")
-                            .font(.headline.weight(.semibold))
-
-                        Text(
-                            selectedExtensionsToRemove.isEmpty
-                            ? "All \(foundExtensions.count) enabled"
-                            : "\(foundExtensions.count - selectedExtensionsToRemove.count) of \(foundExtensions.count) enabled"
-                        )
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    }
-
-                    Spacer()
-
-                    Image(
-                        systemName:
-                            extensionsExpanded
-                            ? "chevron.up"
-                            : "chevron.down"
-                    )
-                    .font(.caption.bold())
-                }
-                .foregroundColor(
-                    selectedExtensionsToRemove.isEmpty
-                    ? Color.primary
-                    : Color.blue
+                IPACardHeader(
+                    icon: selectedExtensionsToRemove.isEmpty
+                        ? "puzzlepiece.extension"
+                        : "checkmark.circle.fill",
+                    title: "Extensions",
+                    subtitle: selectedExtensionsToRemove.isEmpty
+                        ? "All \(foundExtensions.count) enabled"
+                        : "\(foundExtensions.count - selectedExtensionsToRemove.count) of \(foundExtensions.count) enabled",
+                    isExpanded: extensionsExpanded
                 )
             }
             .buttonStyle(.plain)
@@ -1566,6 +1544,7 @@ struct ContentView: View {
         replacementIconName = ""
         replacementIconFiles = [:]
         iconHint = nil
+        iconExpanded = false
 
         plistOverrides = InfoPlistOverrides()
 
@@ -1605,123 +1584,138 @@ struct ContentView: View {
 
     private func handleSelectedFile(_ selected: URL) {
         errorMessage = nil
-
-        let didAccess = selected.startAccessingSecurityScopedResource()
-        defer {
-            if didAccess {
-                selected.stopAccessingSecurityScopedResource()
-            }
-        }
+        isImporting = true
 
         guard let newSession = try? IPASession() else {
+            isImporting = false
             errorMessage = "Import failed: Could not create a temporary workspace."
             status = "Import failed."
             return
         }
 
-        do {
-            let imported = try newSession.importIPA(from: selected)
-            let archive = try IPAArchive(url: imported)
-            let bundle = archive.info
+        let fileName = selected.lastPathComponent
 
-            session?.clean()
-            session = newSession
+        DispatchQueue.global(qos: .userInitiated).async {
+            let didAccess = selected.startAccessingSecurityScopedResource()
 
-            originalFileName = selected.lastPathComponent
-            ipaURL = imported
-            info = bundle
-            entries = archive.entries
-            originalPlist = archive.infoPlist
+            defer {
+                if didAccess {
+                    selected.stopAccessingSecurityScopedResource()
+                }
+            }
 
-            currentBundleID = bundle.bundleIdentifier
-            newBundleID = bundle.bundleIdentifier
+            do {
+                let imported = try newSession.importIPA(from: selected)
+                let archive = try IPAArchive(url: imported)
+                let bundle = archive.info
+                let archiveEntries = archive.entries
+                let plistDictionary = archive.infoPlist
+                let references = IPAVersionReferenceScanner.scan(archive: archive)
+                let iconData = bundle.iconPlan.largestExistingSlot
+                    .flatMap { try? archive.data(at: $0.path) }
 
-            displayName = bundle.displayName
-            originalDisplayName = bundle.displayName
-            displayNameExpanded = false
+                DispatchQueue.main.async {
+                    session?.clean()
+                    session = newSession
 
-            originalURLScheme = bundle.urlScheme
-            newURLScheme = bundle.urlScheme
-            urlSchemeExpanded = false
+                    originalFileName = fileName
+                    ipaURL = imported
+                    info = bundle
+                    entries = archiveEntries
+                    originalPlist = plistDictionary
 
-            appVersion = bundle.marketingVersion
-            appBuild = bundle.buildNumber
-            newVersion = bundle.marketingVersion
-            newBuild = bundle.buildNumber
-            versionExpanded = false
-            versionReferences = IPAVersionReferenceScanner.scan(archive: archive)
+                    currentBundleID = bundle.bundleIdentifier
+                    newBundleID = bundle.bundleIdentifier
 
-            originalIconData = largestIconData(in: archive, plan: bundle.iconPlan)
-            replacementImage = nil
-            replacementIconName = ""
-            replacementIconFiles = [:]
-            iconHint = nil
+                    displayName = bundle.displayName
+                    originalDisplayName = bundle.displayName
+                    displayNameExpanded = false
 
-            foundExtensions = bundle.extensions.map(\.root)
-            selectedExtensionsToRemove = []
-            extensionsExpanded = false
-            expandedExtensionInfo = nil
-            infoTapLocked = false
+                    originalURLScheme = bundle.urlScheme
+                    newURLScheme = bundle.urlScheme
+                    urlSchemeExpanded = false
 
-            plistOverrides = InfoPlistOverrides()
+                    appVersion = bundle.marketingVersion
+                    appBuild = bundle.buildNumber
+                    newVersion = bundle.marketingVersion
+                    newBuild = bundle.buildNumber
+                    versionExpanded = false
+                    versionReferences = references
 
-            copiedFilename = false
-            copiedBundleID = false
-            duplicateMode = false
+                    originalIconData = iconData
+                    replacementImage = nil
+                    replacementIconName = ""
+                    replacementIconFiles = [:]
+                    iconHint = nil
+                    iconExpanded = false
 
-            exportSummary = ""
-            validationMessage = MetadataValidation.bundleIdentifier(bundle.bundleIdentifier)
+                    foundExtensions = bundle.extensions.map(\.root)
+                    selectedExtensionsToRemove = []
+                    extensionsExpanded = false
+                    expandedExtensionInfo = nil
+                    infoTapLocked = false
 
-            exportURL = nil
-            exportFileName = ""
-            inputFileSize = 0
-            outputFileSize = 0
-            lastExportSignature = nil
+                    plistOverrides = InfoPlistOverrides()
 
-            rewrittenExtensions = 0
+                    copiedFilename = false
+                    copiedBundleID = false
+                    duplicateMode = false
 
-            isExporting = false
-            exportProgress = 0
-            exportProgressText = ""
+                    exportSummary = ""
+                    validationMessage = MetadataValidation.bundleIdentifier(bundle.bundleIdentifier)
 
-            status = ""
-        } catch {
-            newSession.clean()
+                    exportURL = nil
+                    exportFileName = ""
+                    inputFileSize = 0
+                    outputFileSize = 0
+                    lastExportSignature = nil
 
-            UINotificationFeedbackGenerator()
-                .notificationOccurred(.error)
+                    rewrittenExtensions = 0
 
-            errorMessage = "Import failed: \(error.localizedDescription)"
-            status = "Import failed."
+                    isExporting = false
+                    exportProgress = 0
+                    exportProgressText = ""
+
+                    isImporting = false
+                    status = ""
+                }
+            } catch {
+                newSession.clean()
+
+                DispatchQueue.main.async {
+                    UINotificationFeedbackGenerator()
+                        .notificationOccurred(.error)
+
+                    isImporting = false
+                    errorMessage = "Import failed: \(error.localizedDescription)"
+                    status = "Import failed."
+                }
+            }
         }
-    }
-
-    private func largestIconData(in archive: IPAArchive, plan: IPAIconPlan) -> Data? {
-        guard let slot = plan.largestExistingSlot else {
-            return nil
-        }
-
-        return try? archive.data(at: slot.path)
     }
 
     private func applyIcon(_ image: UIImage, name: String) {
-        guard let info else {
+        guard let plan = info?.iconPlan else {
             return
         }
 
-        let result = IconRenderer.makeFiles(image: image, plan: info.iconPlan)
+        DispatchQueue.global(qos: .userInitiated).async {
+            let result = IconRenderer.makeFiles(image: image, plan: plan)
 
-        guard !result.files.isEmpty else {
-            errorMessage = result.problems.first ?? "Could not prepare the icon."
-            return
+            DispatchQueue.main.async {
+                guard !result.files.isEmpty else {
+                    errorMessage = result.problems.first ?? "Could not prepare the icon."
+                    return
+                }
+
+                replacementImage = image
+                replacementIconName = name
+                replacementIconFiles = result.files
+                iconHint = result.problems.first
+                errorMessage = nil
+                clearStaleExportState()
+            }
         }
-
-        replacementImage = image
-        replacementIconName = name
-        replacementIconFiles = result.files
-        iconHint = result.problems.first
-        errorMessage = nil
-        clearStaleExportState()
     }
 
     private func loadIconFile(_ url: URL) {
@@ -1951,9 +1945,11 @@ struct ContentView: View {
             exportURL = destination
             exportFileName = destination.lastPathComponent
             outputFileSize = fileSize(of: destination)
+            errorMessage = nil
             status = "Export complete. Original file was not replaced."
         } catch {
-            status = "Could not rename exported IPA: \(error.localizedDescription)"
+            errorMessage = "Could not rename the exported IPA: \(error.localizedDescription)"
+            status = "Could not rename exported IPA."
         }
     }
 

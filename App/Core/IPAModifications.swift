@@ -245,9 +245,9 @@ struct IPAModificationSummary: Equatable {
             }
             .map(\.path)
 
-        let addedFiles = info.iconPlan.slots
-            .filter { !$0.isExisting }
-            .map(\.path)
+        let addedFiles = modifications.icon == nil
+            ? []
+            : info.iconPlan.slots.filter { !$0.isExisting }.map(\.path)
 
         if modifications.bundleIdentifierChanged(from: info) ||
             modifications.displayNameChanged(from: info) ||

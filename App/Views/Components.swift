@@ -72,6 +72,46 @@ struct IPASectionTitle: View {
     }
 }
 
+struct IPACardHeader: View {
+    let icon: String
+    let title: String
+    var subtitle: String? = nil
+    var isExpanded: Bool? = nil
+    var tint: Color = .blue
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon)
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundColor(tint)
+                .frame(width: 24, alignment: .leading)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.headline.weight(.bold))
+                    .foregroundColor(.primary)
+
+                if let subtitle, !subtitle.isEmpty {
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+            }
+
+            Spacer(minLength: 8)
+
+            if let isExpanded {
+                Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                    .font(.caption.bold())
+                    .foregroundColor(.secondary)
+            }
+        }
+        .contentShape(Rectangle())
+    }
+}
+
 struct IPAFieldBox<Content: View>: View {
     private let content: Content
 
