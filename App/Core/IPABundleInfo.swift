@@ -11,12 +11,63 @@ struct IPAExtensionInfo: Equatable, Identifiable {
     }
 
     var name: String {
+        Self.displayName(forRoot: root)
+    }
+
+    static func displayName(forRoot root: String) -> String {
         let folder = root
             .split(separator: "/")
             .last { $0.hasSuffix(".appex") }
 
-        let raw = folder.map(String.init) ?? root
-        return Self.humanReadable(raw.replacingOccurrences(of: ".appex", with: ""))
+        let raw: String
+
+        if let folder {
+            raw = String(folder).replacingOccurrences(of: ".appex", with: "")
+        } else {
+            raw = URL(fileURLWithPath: root)
+                .deletingPathExtension()
+                .lastPathComponent
+        }
+
+        return humanReadable(raw)
+    }
+
+    static func tip(forName name: String) -> String {
+        let lower = name.lowercased()
+
+        if lower.contains("widget") {
+            return "Adds Home Screen or Lock Screen widget support. Removing it disables that widget."
+        }
+
+        if lower.contains("intent") || lower.contains("siri") {
+            return "Handles Siri, Shortcuts, or App Intent actions. Removing it may disable automation features."
+        }
+
+        if lower.contains("notification service") {
+            return "Handles enhanced notification content, images, or media. Removing it may make notifications more basic."
+        }
+
+        if lower.contains("notification content") {
+            return "Provides custom notification layouts. Removing it may disable rich notification views."
+        }
+
+        if lower.contains("notification") {
+            return "Supports notification-related features. Removing it may affect alerts or notification previews."
+        }
+
+        if lower.contains("safari") {
+            return "Adds Safari integration. Removing it may disable Safari extension features."
+        }
+
+        if lower.contains("share") {
+            return "Adds Share Sheet integration. Removing it may stop the app appearing in share menus."
+        }
+
+        if lower.contains("watch") {
+            return "Adds Apple Watch support. Removing it may disable watchOS companion features."
+        }
+
+        return "App extension component. Removing it can reduce signing/App ID usage, but some app features may stop working."
     }
 
     static func humanReadable(_ raw: String) -> String {

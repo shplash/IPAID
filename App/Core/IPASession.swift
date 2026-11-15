@@ -58,7 +58,10 @@ enum IPATemporaryStore {
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
     }
 
-    static func pruneSessions(olderThan age: TimeInterval = 24 * 60 * 60) {
+    static func pruneSessions(
+        olderThan age: TimeInterval = 24 * 60 * 60,
+        keeping directory: URL? = nil
+    ) {
         let fileManager = FileManager.default
         let root = fileManager.temporaryDirectory.appendingPathComponent("IPAID", isDirectory: true)
 
@@ -71,8 +74,13 @@ enum IPATemporaryStore {
         }
 
         let cutoff = Date().addingTimeInterval(-age)
+        let kept = directory?.standardizedFileURL
 
         for session in sessions {
+            if let kept, session.standardizedFileURL == kept {
+                continue
+            }
+
             let modified = (try? session.resourceValues(forKeys: [.contentModificationDateKey]))?
                 .contentModificationDate ?? .distantPast
 

@@ -106,8 +106,8 @@ enum IPAComparison {
             IPAMetadataDifference(
                 id: "size",
                 label: "File size",
-                left: ByteCountFormatter.string(fromByteCount: leftInfo.fileSize, countStyle: .file),
-                right: ByteCountFormatter.string(fromByteCount: rightInfo.fileSize, countStyle: .file)
+                left: IPAFormatting.fileSize(leftInfo.fileSize),
+                right: IPAFormatting.fileSize(rightInfo.fileSize)
             )
         ]
 

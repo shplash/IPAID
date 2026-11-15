@@ -43,7 +43,7 @@ enum IPAVersionReferenceScanner {
                   let data = try? archive.data(at: entry.path),
                   !data.contains(0),
                   let text = String(data: data, encoding: .utf8),
-                  text.contains(version) else {
+                  containsVersion(version, in: text) else {
                 continue
             }
 
@@ -55,5 +55,40 @@ enum IPAVersionReferenceScanner {
         }
 
         return references
+    }
+
+    static func containsVersion(_ version: String, in text: String) -> Bool {
+        guard !version.isEmpty else {
+            return false
+        }
+
+        var searchStart = text.startIndex
+
+        while searchStart < text.endIndex,
+              let range = text.range(of: version, range: searchStart..<text.endIndex) {
+            let before = range.lowerBound > text.startIndex
+                ? text[text.index(before: range.lowerBound)]
+                : nil
+
+            let after = range.upperBound < text.endIndex
+                ? text[range.upperBound]
+                : nil
+
+            if !isVersionCharacter(before) && !isVersionCharacter(after) {
+                return true
+            }
+
+            searchStart = text.index(after: range.lowerBound)
+        }
+
+        return false
+    }
+
+    private static func isVersionCharacter(_ character: Character?) -> Bool {
+        guard let character else {
+            return false
+        }
+
+        return character.isNumber || character == "."
     }
 }
