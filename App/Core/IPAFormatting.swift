@@ -40,6 +40,18 @@ enum IPAFormatting {
 
     static let defaultExportSuffix = "-ipaid"
 
+    static func buildLabel(_ build: String) -> String {
+        let clean = build.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        return clean.isEmpty ? "" : "b\(clean)"
+    }
+
+    static func versionLabel(_ version: String) -> String {
+        let clean = version.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        return clean.isEmpty ? "" : "v\(clean)"
+    }
+
     static func exportSuffix(_ suffix: String) -> String {
         let trimmed = suffix.trimmingCharacters(in: .whitespacesAndNewlines)
         let forbidden = CharacterSet(charactersIn: "/\\:*?\"<>|")

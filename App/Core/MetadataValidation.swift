@@ -2,6 +2,8 @@ import Foundation
 
 enum MetadataValidation {
 
+    static let cannotBeEmpty = "Cannot be empty"
+
     static func bundleIdentifier(_ id: String) -> String {
         let clean = id.trimmingCharacters(in: .whitespacesAndNewlines)
 

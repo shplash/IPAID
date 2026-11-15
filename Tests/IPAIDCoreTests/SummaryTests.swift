@@ -161,6 +161,58 @@ final class SummaryTests: XCTestCase {
         XCTAssertTrue(summary.iconFilePaths.isEmpty)
     }
 
+    func testArchiveMetadataStaysOriginalWhileEditing() throws {
+        let archive = try makeArchive()
+        let info = archive.info
+
+        let originalName = info.displayName
+        let originalVersion = info.marketingVersion
+        let originalBuild = info.buildNumber
+
+        var modifications = Fixtures.modifications(for: info)
+        modifications.displayName = "Edited Name"
+        modifications.marketingVersion = "9.9"
+        modifications.buildNumber = "999"
+
+        _ = IPAModificationSummary(
+            info: info,
+            entries: archive.entries,
+            modifications: modifications
+        )
+
+        XCTAssertEqual(info.displayName, originalName)
+        XCTAssertEqual(info.marketingVersion, originalVersion)
+        XCTAssertEqual(info.buildNumber, originalBuild)
+        XCTAssertEqual(archive.info.displayName, originalName)
+        XCTAssertEqual(archive.info.marketingVersion, originalVersion)
+        XCTAssertEqual(archive.info.buildNumber, originalBuild)
+    }
+
+    func testEditedValuesOnlyAppearInTheExportedCopy() throws {
+        let source = directory.appendingPathComponent("Example.ipa")
+        try Fixtures.makeIPA(at: source)
+
+        let archive = try IPAArchive(url: source)
+        let originalName = archive.info.displayName
+        let originalVersion = archive.info.marketingVersion
+
+        var modifications = Fixtures.modifications(for: archive.info)
+        modifications.displayName = "Edited Name"
+        modifications.marketingVersion = "9.9"
+
+        let output = directory.appendingPathComponent("Edited.ipa")
+        _ = try IPAExporter.export(
+            IPAExportRequest(sourceURL: source, outputURL: output, modifications: modifications)
+        )
+
+        XCTAssertEqual(archive.info.displayName, originalName)
+        XCTAssertEqual(archive.info.marketingVersion, originalVersion)
+
+        let exported = try IPAArchive(url: output)
+        XCTAssertEqual(exported.info.displayName, "Edited Name")
+        XCTAssertEqual(exported.info.marketingVersion, "9.9")
+    }
+
     func testExtensionRemovalIsListedInTheSummary() throws {
         let archive = try makeArchive()
         let root = archive.info.extensions[0].root

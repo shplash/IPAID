@@ -44,4 +44,73 @@ final class ValidationTests: XCTestCase {
         XCTAssertFalse(MetadataValidation.displayName("").isEmpty)
         XCTAssertFalse(MetadataValidation.displayName(String(repeating: "a", count: 31)).isEmpty)
     }
+
+    func testEmptyFieldsShareTheCannotBeEmptyMessage() {
+        XCTAssertEqual(MetadataValidation.cannotBeEmpty, "Cannot be empty")
+        XCTAssertFalse(MetadataValidation.displayName("").isEmpty)
+        XCTAssertFalse(MetadataValidation.displayName("   ").isEmpty)
+        XCTAssertFalse(MetadataValidation.bundleIdentifier("").isEmpty)
+        XCTAssertFalse(MetadataValidation.bundleIdentifier("  ").isEmpty)
+    }
+
+    func testFilledFieldsReportNoCannotBeEmptyMessage() {
+        XCTAssertEqual(MetadataValidation.displayName("Example"), "")
+        XCTAssertEqual(MetadataValidation.bundleIdentifier("com.example.app"), "")
+    }
+
+    func testBuildAndVersionLabels() {
+        XCTAssertEqual(IPAFormatting.buildLabel("112"), "b112")
+        XCTAssertEqual(IPAFormatting.buildLabel(" 7 "), "b7")
+        XCTAssertEqual(IPAFormatting.buildLabel(""), "")
+        XCTAssertEqual(IPAFormatting.versionLabel("1.21"), "v1.21")
+        XCTAssertEqual(IPAFormatting.versionLabel(""), "")
+    }
+
+    func testExtensionBulkTitleFollowsTheSelection() {
+        let available = ["A", "B", "C"]
+
+        XCTAssertEqual(
+            ExtensionSelection.bulkTitle(available: available, removed: []),
+            "Disable All"
+        )
+        XCTAssertEqual(
+            ExtensionSelection.bulkTitle(available: available, removed: ["B"]),
+            "Enable All"
+        )
+    }
+
+    func testExtensionBulkSelectionTogglesEverything() {
+        let available = ["A", "B", "C"]
+
+        XCTAssertEqual(
+            ExtensionSelection.bulkSelection(available: available, removed: []),
+            Set(available)
+        )
+        XCTAssertEqual(
+            ExtensionSelection.bulkSelection(available: available, removed: ["B"]),
+            Set<String>()
+        )
+        XCTAssertEqual(
+            ExtensionSelection.bulkSelection(available: available, removed: ["A", "B", "C"]),
+            Set<String>()
+        )
+    }
+
+    func testExtensionBulkSelectionRoundTrips() {
+        let available = ["A", "B", "C"]
+
+        let disabled = ExtensionSelection.bulkSelection(available: available, removed: [])
+        XCTAssertFalse(ExtensionSelection.allEnabled(available: available, removed: disabled))
+        XCTAssertEqual(ExtensionSelection.keptCount(available: available, removed: disabled), 0)
+
+        let enabled = ExtensionSelection.bulkSelection(available: available, removed: disabled)
+        XCTAssertTrue(ExtensionSelection.allEnabled(available: available, removed: enabled))
+        XCTAssertEqual(ExtensionSelection.keptCount(available: available, removed: enabled), 3)
+    }
+
+    func testExtensionBulkHandlesAnEmptyList() {
+        XCTAssertTrue(ExtensionSelection.allEnabled(available: [], removed: []))
+        XCTAssertEqual(ExtensionSelection.bulkTitle(available: [], removed: []), "Disable All")
+        XCTAssertEqual(ExtensionSelection.bulkSelection(available: [], removed: []), Set<String>())
+    }
 }
