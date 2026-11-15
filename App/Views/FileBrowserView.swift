@@ -157,7 +157,7 @@ struct FileBrowserView: View {
             } else {
                 HStack(spacing: 6) {
                     Button {
-                        open(item)
+                        openFile(item)
                     } label: {
                         leading(for: item)
                             .contentShape(Rectangle())
@@ -226,7 +226,7 @@ struct FileBrowserView: View {
         }
     }
 
-    private func open(_ item: BrowserItem) {
+    private func openFile(_ item: BrowserItem) {
         errorMessage = nil
 
         model.extract(item) { result in
