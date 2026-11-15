@@ -28,7 +28,7 @@ targets:
       INFOPLIST_FILE: App/Info.plist
       SWIFT_VERSION: 5.0
       CURRENT_PROJECT_VERSION: 1
-      MARKETING_VERSION: 1.21
+      MARKETING_VERSION: "2.0"
 
     scheme:
       gatherCoverageData: false
