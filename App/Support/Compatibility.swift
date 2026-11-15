@@ -29,15 +29,6 @@ extension View {
     }
 
     @ViewBuilder
-    func ipaidTextSelection() -> some View {
-        if #available(iOS 15.0, *) {
-            self.textSelection(.enabled)
-        } else {
-            self
-        }
-    }
-
-    @ViewBuilder
     func ipaidSmallControl() -> some View {
         if #available(iOS 15.0, *) {
             self.controlSize(.small)

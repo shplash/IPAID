@@ -33,16 +33,16 @@ struct IPASheet<Content: View>: View {
             VStack(spacing: 0) {
                 HStack {
                     Text(title)
-                        .font(.title3.weight(.bold))
+                        .font(.title2.weight(.bold))
 
                     Spacer()
 
                     Button("Done", action: onClose)
-                        .font(.subheadline.weight(.semibold))
+                        .font(.body.weight(.semibold))
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 18)
-                .padding(.bottom, 10)
+                .padding(.bottom, 12)
 
                 ScrollView {
                     VStack(spacing: 16) {
@@ -57,20 +57,16 @@ struct IPASheet<Content: View>: View {
     }
 }
 
-struct IPASectionTitle: View {
-    let icon: String
+struct IPASectionHeader: View {
     let title: String
 
     var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: icon)
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundColor(.blue)
-                .frame(width: 24, alignment: .leading)
-
-            Text(title)
-                .font(.headline.weight(.bold))
-        }
+        Text(title.uppercased())
+            .font(.footnote.weight(.semibold))
+            .foregroundColor(.secondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 4)
+            .padding(.top, 8)
     }
 }
 
@@ -234,9 +230,13 @@ struct IPAIconThumbnail: View {
             }
             .frame(width: size, height: size)
             .clipShape(RoundedRectangle(cornerRadius: size * 0.225, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: size * 0.225, style: .continuous)
+                    .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+            )
 
             Text(caption)
-                .font(.caption2)
+                .font(.caption)
                 .foregroundColor(.secondary)
         }
     }
@@ -246,6 +246,7 @@ struct IPAInfoBanner: View {
     let message: String
     var color: Color = .orange
     var icon = "exclamationmark.circle.fill"
+    var onDismiss: (() -> Void)?
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
@@ -258,6 +259,14 @@ struct IPAInfoBanner: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             Spacer(minLength: 0)
+
+            if let onDismiss {
+                Button(action: onDismiss) {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(color.opacity(0.75))
+                }
+                .buttonStyle(.plain)
+            }
         }
         .padding(13)
         .background(color.opacity(0.08))
@@ -345,7 +354,7 @@ struct IPAPathList: View {
         VStack(alignment: .leading, spacing: 5) {
             ForEach(Array(paths.prefix(limit)), id: \.self) { path in
                 Text(path)
-                    .font(.system(.caption2, design: .monospaced))
+                    .font(.system(.caption, design: .monospaced))
                     .foregroundColor(.secondary)
                     .lineLimit(1)
                     .truncationMode(.middle)
@@ -353,7 +362,7 @@ struct IPAPathList: View {
 
             if paths.count > limit {
                 Text("+ \(paths.count - limit) more")
-                    .font(.caption2)
+                    .font(.caption)
                     .foregroundColor(.secondary)
             }
         }

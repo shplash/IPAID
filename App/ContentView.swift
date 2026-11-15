@@ -98,6 +98,14 @@ struct ContentView: View {
         cleanNewBundleID != cleanCurrentBundleID
     }
 
+    private var bundleIDProblem: String {
+        guard bundleIDChanged else {
+            return ""
+        }
+
+        return MetadataValidation.bundleIdentifier(cleanNewBundleID)
+    }
+
     private var displayNameChanged: Bool {
         cleanDisplayName != cleanOriginalDisplayName
     }
@@ -234,7 +242,7 @@ struct ContentView: View {
         }
     }
 
-    private var currentChangeMessage: String {
+    private var exportStatusMessage: String {
         guard let info else {
             return ""
         }
@@ -243,11 +251,8 @@ struct ContentView: View {
             return problem
         }
 
-        if !hasPendingChanges {
-            if exportURL != nil {
-                return "Export complete — no changes detected."
-            }
-            return "No changes detected."
+        guard hasPendingChanges else {
+            return ""
         }
 
         if !bundleIDChanged {
@@ -407,7 +412,11 @@ struct ContentView: View {
                 }
 
                 if let errorMessage {
-                    IPAInfoBanner(message: errorMessage, color: .red)
+                    IPAInfoBanner(
+                        message: errorMessage,
+                        color: .red,
+                        onDismiss: { self.errorMessage = nil }
+                    )
                 }
 
                 if currentBundleID.isEmpty {
@@ -443,10 +452,10 @@ struct ContentView: View {
     private var fileInfoSection: some View {
         HStack(spacing: 7) {
             Image(systemName: "doc.zipper")
-                .font(.caption)
+                .font(.footnote)
 
             Text(displayedOriginalFileName)
-                .font(.caption.weight(.medium))
+                .font(.footnote.weight(.medium))
                 .lineLimit(1)
                 .truncationMode(.middle)
 
@@ -456,7 +465,7 @@ struct ContentView: View {
                 Button("Unload") {
                     unloadIPA()
                 }
-                .font(.caption.weight(.semibold))
+                .font(.footnote.weight(.semibold))
                 .disabled(isExporting)
             }
         }
@@ -565,19 +574,19 @@ struct ContentView: View {
 
             displayNameCard
 
-            urlSchemeCard
-
-            versionCard
-
             iconCard
 
             extensionCard
 
-            toolsCard
+            IPASectionHeader(title: "Advanced")
 
-            if exportURL == nil || hasPendingChanges || isExporting {
-                validationCard
-            }
+            versionCard
+
+            urlSchemeCard
+
+            IPASectionHeader(title: "Tools")
+
+            toolsCard
 
             exportCard
         }
@@ -585,24 +594,15 @@ struct ContentView: View {
 
     private var appOverviewCard: some View {
         VStack(alignment: .leading, spacing: 12) {
-            sectionTitle(
-                icon: "app.badge",
-                title: "App Information"
-            )
+            IPACardHeader(icon: "app.badge", title: "App Information")
 
-            HStack {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(displayName.isEmpty ? "Unnamed App" : displayName)
-                        .font(.headline)
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                Text(originalDisplayName.isEmpty ? "Unnamed App" : originalDisplayName)
+                    .font(.headline)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
 
-                    Text(currentBundleID)
-                        .font(.system(.caption, design: .monospaced))
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                }
-
-                Spacer()
+                Spacer(minLength: 0)
 
                 VStack(alignment: .trailing, spacing: 3) {
                     if !appVersion.isEmpty {
@@ -610,7 +610,7 @@ struct ContentView: View {
                             .font(.subheadline.weight(.semibold))
                     }
 
-                    Text("Build \(appBuild.isEmpty ? "Unknown" : appBuild)")
+                    Text(appBuild.isEmpty ? "No build number" : "Build \(appBuild)")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -621,77 +621,58 @@ struct ContentView: View {
 
     private var bundleIDCard: some View {
         VStack(alignment: .leading, spacing: 12) {
+            IPACardHeader(icon: "shippingbox.fill", title: "Bundle ID")
 
-            sectionTitle(
-                icon: "shippingbox.fill",
-                title: "Bundle ID"
-            )
-
-            HStack(spacing: 8) {
-                Text(currentBundleID)
+            IPAFieldBox {
+                HStack(spacing: 10) {
+                    TextField(
+                        "com.example.app",
+                        text: $newBundleID
+                    )
+                    .autocapitalization(.none)
+                    .disableAutocorrection(true)
                     .font(.system(.body, design: .monospaced))
                     .lineLimit(1)
-                    .truncationMode(.middle)
-                    .ipaidTextSelection()
 
-                Spacer()
-
-                Button {
-                    UIPasteboard.general.string = currentBundleID
-                    copiedBundleID = true
-
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
-                        copiedBundleID = false
+                    if !newBundleID.isEmpty {
+                        Button {
+                            newBundleID = ""
+                            duplicateMode = false
+                            clearStaleExportState()
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundColor(.secondary)
+                        }
+                        .buttonStyle(.plain)
                     }
-                } label: {
-                    Image(systemName: copiedBundleID ? "checkmark" : "doc.on.doc")
-                }
-                .buttonStyle(.plain)
-            }
-            .foregroundColor(.secondary)
 
-            Divider()
-
-            Text("New Bundle ID")
-                .font(.subheadline.weight(.semibold))
-
-            HStack(spacing: 8) {
-                TextField(
-                    "com.example.app",
-                    text: $newBundleID
-                )
-                .autocapitalization(.none)
-                .disableAutocorrection(true)
-                .font(.system(.body, design: .monospaced))
-                .lineLimit(1)
-
-                if !newBundleID.isEmpty {
                     Button {
-                        newBundleID = ""
-                        duplicateMode = false
-                        clearStaleExportState()
+                        UIPasteboard.general.string = cleanNewBundleID.isEmpty
+                            ? currentBundleID
+                            : cleanNewBundleID
+                        copiedBundleID = true
+
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                            copiedBundleID = false
+                        }
                     } label: {
-                        Image(systemName: "xmark.circle.fill")
+                        Image(systemName: copiedBundleID ? "checkmark" : "doc.on.doc")
+                            .foregroundColor(.secondary)
+                    }
+                    .buttonStyle(.plain)
+
+                    Button {
+                        if let paste = UIPasteboard.general.string {
+                            newBundleID = paste
+                            clearStaleExportState()
+                        }
+                    } label: {
+                        Image(systemName: "doc.on.clipboard")
                             .foregroundColor(.secondary)
                     }
                     .buttonStyle(.plain)
                 }
-
-                Button {
-                    if let paste = UIPasteboard.general.string {
-                        newBundleID = paste
-                        clearStaleExportState()
-                    }
-                } label: {
-                    Image(systemName: "doc.on.clipboard")
-                        .foregroundColor(.secondary)
-                }
-                .buttonStyle(.plain)
             }
-            .padding(.horizontal, 13)
-            .padding(.vertical, 12)
-            .background(Color.secondary.opacity(0.08))
-            .clipShape(RoundedRectangle(cornerRadius: 12))
             .onChange(of: newBundleID) { value in
                 if duplicateMode &&
                     value != currentBundleID + ".ipaid" {
@@ -699,6 +680,21 @@ struct ContentView: View {
                 }
 
                 clearStaleExportState()
+            }
+
+            if bundleIDChanged {
+                Text("Original \(currentBundleID)")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+
+                if !bundleIDProblem.isEmpty {
+                    Text(bundleIDProblem)
+                        .font(.caption)
+                        .foregroundColor(.red)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
 
             Button {
@@ -888,13 +884,13 @@ struct ContentView: View {
 
             if versionChanged, !versionReferences.isEmpty {
                 Text(versionReferenceText)
-                    .font(.caption2)
+                    .font(.caption)
                     .foregroundColor(.orange)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
             Text("Metadata only. This does not change the app's actual version.")
-                .font(.caption2)
+                .font(.caption)
                 .foregroundColor(.secondary)
         }
     }
@@ -939,7 +935,7 @@ struct ContentView: View {
 
                 if !original.isEmpty {
                     Text("Original \(original)")
-                        .font(.caption2)
+                        .font(.caption)
                         .foregroundColor(.secondary)
                 }
             }
@@ -956,7 +952,7 @@ struct ContentView: View {
 
             if !error.isEmpty {
                 Text(error)
-                    .font(.caption2)
+                    .font(.caption)
                     .foregroundColor(.red)
             }
         }
@@ -969,57 +965,64 @@ struct ContentView: View {
             subtitle: iconSubtitle,
             isExpanded: $iconExpanded
         ) {
-            HStack(spacing: 14) {
-                IPAIconThumbnail(image: originalIconImage, caption: "Original", size: 62)
+            VStack(spacing: 16) {
+                HStack(alignment: .top, spacing: 22) {
+                    IPAIconThumbnail(image: originalIconImage, caption: "Original", size: 72)
 
-                Image(systemName: "arrow.right")
-                    .font(.caption.weight(.semibold))
-                    .foregroundColor(.secondary)
+                    Image(systemName: "arrow.right")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(.secondary)
+                        .frame(height: 72)
 
-                IPAIconThumbnail(image: replacementImage, caption: "Replacement", size: 62)
-
-                Spacer(minLength: 0)
-            }
-
-            HStack(spacing: 10) {
-                Button {
-                    activeSheet = .iconPhotos
-                } label: {
-                    Label("Photos", systemImage: "photo")
-                        .font(.subheadline.weight(.semibold))
+                    IPAIconThumbnail(image: replacementImage, caption: "Replacement", size: 72)
                 }
-                .ipaidBorderedButton()
+                .frame(maxWidth: .infinity)
 
-                Button {
-                    activeSheet = .iconFiles
-                } label: {
-                    Label("Files", systemImage: "folder")
-                        .font(.subheadline.weight(.semibold))
+                HStack(spacing: 10) {
+                    Button {
+                        activeSheet = .iconPhotos
+                    } label: {
+                        Label("Photos", systemImage: "photo")
+                            .font(.subheadline.weight(.semibold))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 9)
+                    }
+                    .ipaidBorderedButton()
+
+                    Button {
+                        activeSheet = .iconFiles
+                    } label: {
+                        Label("Files", systemImage: "folder")
+                            .font(.subheadline.weight(.semibold))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 9)
+                    }
+                    .ipaidBorderedButton()
                 }
-                .ipaidBorderedButton()
 
                 if replacementImage != nil {
-                    Button("Reset", action: resetIcon)
-                        .font(.subheadline.weight(.semibold))
+                    Button("Reset to Original", action: resetIcon)
+                        .font(.footnote.weight(.semibold))
                         .foregroundColor(.secondary)
                         .buttonStyle(.plain)
                 }
 
-                Spacer(minLength: 0)
-            }
+                if let iconHint {
+                    Text(iconHint)
+                        .font(.caption)
+                        .foregroundColor(.orange)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
 
-            if let iconHint {
-                Text(iconHint)
-                    .font(.caption2)
-                    .foregroundColor(.orange)
-                    .fixedSize(horizontal: false, vertical: true)
+                if !iconSlotText.isEmpty {
+                    Text(iconSlotText)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                }
             }
-
-            if !iconSlotText.isEmpty {
-                Text(iconSlotText)
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-            }
+            .frame(maxWidth: .infinity)
         }
     }
 
@@ -1057,7 +1060,7 @@ struct ContentView: View {
 
     private var toolsCard: some View {
         VStack(alignment: .leading, spacing: 0) {
-            sectionTitle(icon: "wrench.and.screwdriver", title: "Tools")
+            IPACardHeader(icon: "wrench.and.screwdriver", title: "Tools")
 
             IPASubtleDivider()
                 .padding(.top, 12)
@@ -1091,14 +1094,6 @@ struct ContentView: View {
             }
         }
         .cardStyle()
-    }
-
-    private var validationCard: some View {
-        IPAInfoBanner(
-            message: currentChangeMessage,
-            color: validationColor,
-            icon: validationIcon
-        )
     }
 
     private var validationIcon: String {
@@ -1141,6 +1136,12 @@ struct ContentView: View {
                         .foregroundColor(.secondary)
                         .lineLimit(1)
                 }
+            } else if !exportStatusMessage.isEmpty {
+                IPAInfoBanner(
+                    message: exportStatusMessage,
+                    color: validationColor,
+                    icon: validationIcon
+                )
             }
 
             Button {
@@ -1164,13 +1165,6 @@ struct ContentView: View {
             }
             .ipaidProminentButton()
             .disabled(!canExport)
-
-            if !exportSummary.isEmpty {
-                Text(exportSummary)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
         }
         .cardStyle()
     }
@@ -1189,11 +1183,11 @@ struct ContentView: View {
 
     private var outputSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            sectionTitle(icon: "checkmark.circle.fill", title: "Exported IPA")
+            IPACardHeader(icon: "checkmark.circle.fill", title: "Exported IPA")
 
             Text(
                 hasPendingChanges
-                    ? "Previous export. Export again to include your latest changes."
+                    ? "Previous export — settings changed since."
                     : "Export complete."
             )
             .font(.subheadline.weight(.semibold))
@@ -1232,9 +1226,18 @@ struct ContentView: View {
                 activeSheet = .share
             } label: {
                 Label("Save / Share IPA", systemImage: "square.and.arrow.up")
+                    .font(.subheadline.weight(.semibold))
                     .frame(maxWidth: .infinity)
+                    .padding(.vertical, 9)
             }
             .ipaidBorderedButton()
+
+            if !exportSummary.isEmpty {
+                Text(exportSummary)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
             HStack(spacing: 18) {
                 Text("Before: \(IPAFormatting.fileSize(inputFileSize))")
@@ -1245,13 +1248,6 @@ struct ContentView: View {
             .foregroundColor(.secondary)
         }
         .cardStyle()
-    }
-
-    private func sectionTitle(
-        icon: String,
-        title: String
-    ) -> some View {
-        IPASectionTitle(icon: icon, title: title)
     }
 
     private var extensionList: some View {
@@ -1355,7 +1351,7 @@ struct ContentView: View {
                 Text(
                     IPAExtensionInfo.tip(forName: name)
                 )
-                .font(.caption2)
+                .font(.caption)
                 .foregroundColor(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(8)
@@ -1790,7 +1786,7 @@ struct ContentView: View {
             return ""
         }
 
-        return "Applied: " + labels.joined(separator: " • ")
+        return "Applied: " + labels.joined(separator: ", ")
     }
 
 
