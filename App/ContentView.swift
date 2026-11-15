@@ -510,7 +510,7 @@ struct ContentView: View {
                 Text("v\(currentAppVersion)")
                     .font(.caption.weight(.bold))
                     .foregroundColor(.secondary)
-                    .padding(.bottom, 3)
+                    .padding(.bottom, 6)
             }
 
             Spacer(minLength: 0)
@@ -894,22 +894,22 @@ struct ContentView: View {
                     } label: {
                         Label("Photos", systemImage: "photo")
                             .font(.subheadline.weight(.semibold))
-                            .foregroundColor(.white)
+                            .foregroundColor(.blue)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 9)
                     }
-                    .ipaidBorderedButton()
+                    .ipaidGlassButton(.blue)
 
                     Button {
                         activeSheet = .iconFiles
                     } label: {
                         Label("Files", systemImage: "folder")
                             .font(.subheadline.weight(.semibold))
-                            .foregroundColor(.white)
+                            .foregroundColor(.blue)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 9)
                     }
-                    .ipaidBorderedButton()
+                    .ipaidGlassButton(.blue)
                 }
 
                 if replacementImage != nil {
@@ -1152,7 +1152,8 @@ struct ContentView: View {
                         }
                         .font(.subheadline.weight(.semibold))
                         .frame(maxWidth: .infinity)
-                        .frame(height: 22)
+                        .frame(minHeight: 22)
+                        .padding(.vertical, 11)
                     }
                     .ipaidGlassButton(.red)
 
@@ -1162,7 +1163,8 @@ struct ContentView: View {
                         Label("Save / Share", systemImage: "square.and.arrow.up")
                             .font(.subheadline.weight(.semibold))
                             .frame(maxWidth: .infinity)
-                            .frame(height: 22)
+                            .frame(minHeight: 22)
+                            .padding(.vertical, 11)
                     }
                     .ipaidGlassButton(.blue)
                 }

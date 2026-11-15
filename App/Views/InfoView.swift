@@ -53,8 +53,11 @@ struct InfoView: View {
             skipReviewRow
                 .padding(.top, 14)
 
+            subtleDivider
+                .padding(.top, 14)
+
             exportSuffixField
-                .padding(.top, 18)
+                .padding(.top, 14)
 
             subtleDivider
                 .padding(.top, 30)
@@ -143,7 +146,7 @@ struct InfoView: View {
 
     private var skipReviewRow: some View {
         Toggle(isOn: $skipReview) {
-            HStack(spacing: 11) {
+            HStack(spacing: 13) {
                 settingIcon("forward.end.fill")
 
                 Text("Skip Review Changes")
@@ -155,16 +158,14 @@ struct InfoView: View {
 
     private func settingIcon(_ name: String) -> some View {
         Image(systemName: name)
-            .font(.system(size: 11, weight: .semibold))
+            .font(.system(size: 17, weight: .medium))
             .foregroundColor(.white)
-            .frame(width: 22, height: 22)
-            .background(Color.primary.opacity(0.55))
-            .clipShape(Circle())
+            .frame(width: 26)
     }
 
     private var exportSuffixField: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 11) {
+            HStack(spacing: 13) {
                 settingIcon("tag.fill")
 
                 Text("Exported Filename Suffix")
@@ -190,11 +191,13 @@ struct InfoView: View {
                     }
                 }
             }
+            .padding(.leading, 39)
 
             Text("Added to exported IPA filenames. Leave it empty for none.")
                 .font(.caption)
                 .foregroundColor(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+                .padding(.leading, 39)
         }
     }
 

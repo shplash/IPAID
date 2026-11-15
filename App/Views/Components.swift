@@ -16,6 +16,7 @@ struct IPASheet<Content: View>: View {
     private let onClose: (() -> Void)?
     private let centeredTitle: Bool
     private let sizesToContent: Bool
+    private let scrolls: Bool
     private let content: Content
 
     @State private var contentHeight: CGFloat = 0
@@ -25,12 +26,14 @@ struct IPASheet<Content: View>: View {
         onClose: (() -> Void)? = nil,
         centeredTitle: Bool = false,
         sizesToContent: Bool = true,
+        scrolls: Bool = true,
         @ViewBuilder content: () -> Content
     ) {
         self.title = title
         self.onClose = onClose
         self.centeredTitle = centeredTitle
         self.sizesToContent = sizesToContent
+        self.scrolls = scrolls
         self.content = content()
     }
 
@@ -41,14 +44,14 @@ struct IPASheet<Content: View>: View {
             VStack(spacing: 0) {
                 header
 
-                ScrollView {
-                    VStack(spacing: 16) {
-                        content
+                if scrolls {
+                    ScrollView {
+                        contentStack
+                            .ipaidMeasureHeight()
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 4)
-                    .padding(.bottom, 28)
-                    .ipaidMeasureHeight()
+                } else {
+                    contentStack
+                        .frame(maxHeight: .infinity)
                 }
             }
         }
@@ -56,6 +59,15 @@ struct IPASheet<Content: View>: View {
             contentHeight = height
         }
         .ipaidSheetHeight(sizesToContent ? contentHeight : 0)
+    }
+
+    private var contentStack: some View {
+        VStack(spacing: 16) {
+            content
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 4)
+        .padding(.bottom, 28)
     }
 
     private var header: some View {

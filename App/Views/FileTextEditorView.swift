@@ -24,26 +24,29 @@ struct FileTextEditorView: View {
     }
 
     var body: some View {
-        IPASheet(title: edit.name, onClose: onClose, sizesToContent: false) {
+        IPASheet(title: edit.name, onClose: onClose, sizesToContent: false, scrolls: false) {
             VStack(alignment: .leading, spacing: 12) {
                 if let errorMessage {
                     IPAInfoBanner(message: errorMessage, color: .red)
                 }
 
-                Text(edit.path)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .lineLimit(2)
-                    .truncationMode(.middle)
+                VStack(alignment: .leading, spacing: 10) {
+                    Text(edit.path)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
 
-                TextEditor(text: $text)
-                    .font(.system(.footnote, design: .monospaced))
-                    .autocapitalization(.none)
-                    .disableAutocorrection(true)
-                    .frame(minHeight: 260)
-                    .padding(8)
-                    .background(Color.secondary.opacity(0.08))
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    TextEditor(text: $text)
+                        .font(.system(.footnote, design: .monospaced))
+                        .autocapitalization(.none)
+                        .disableAutocorrection(true)
+                        .frame(maxWidth: .infinity, minHeight: 120, maxHeight: .infinity)
+                }
+                .padding(15)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .background(Color(UIColor.secondarySystemGroupedBackground))
+                .clipShape(RoundedRectangle(cornerRadius: 17, style: .continuous))
 
                 HStack(spacing: 10) {
                     Button(action: onClose) {
@@ -68,7 +71,6 @@ struct FileTextEditorView: View {
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
-            .cardStyle()
         }
     }
 

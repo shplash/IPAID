@@ -170,18 +170,7 @@ struct FileBrowserView: View {
                         .lineLimit(1)
                         .truncationMode(.middle)
 
-                    Spacer(minLength: 10)
-
-                    if item.isDirectory {
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundColor(Color.secondary.opacity(0.6))
-                    } else {
-                        Text(IPAFormatting.fileSize(item.size))
-                            .font(.footnote)
-                            .foregroundColor(.secondary)
-                            .ipaidMonospacedDigits()
-                    }
+                    Spacer(minLength: 4)
                 }
                 .contentShape(Rectangle())
                 .padding(.vertical, 12)
@@ -196,9 +185,28 @@ struct FileBrowserView: View {
                         .font(.footnote.weight(.semibold))
                         .foregroundColor(.blue)
                         .padding(.vertical, 6)
-                        .padding(.horizontal, 4)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .frame(width: 34, alignment: .trailing)
+            } else {
+                Color.clear
+                    .frame(width: 34, height: 1)
+            }
+
+            if item.isDirectory {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundColor(Color.secondary.opacity(0.6))
+                    .frame(width: 60, alignment: .trailing)
+            } else {
+                Text(IPAFormatting.fileSize(item.size))
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.9)
+                    .frame(width: 60, alignment: .trailing)
+                    .ipaidMonospacedDigits()
             }
         }
     }

@@ -156,37 +156,37 @@ struct URLEditorView: View {
     var body: some View {
         IPASheet(title: "URL Scheme", onClose: onClose) {
             VStack(alignment: .leading, spacing: 12) {
-                IPAFieldBox {
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack(spacing: 8) {
-                            TextField("myapp", text: $scheme)
-                                .autocapitalization(.none)
-                                .disableAutocorrection(true)
-                                .font(.system(.body, design: .monospaced))
-                                .lineLimit(1)
+                HStack {
+                    Text("Scheme")
+                        .font(.subheadline.weight(.semibold))
 
-                            if !scheme.isEmpty {
-                                Button {
-                                    scheme = ""
-                                } label: {
-                                    Image(systemName: "xmark.circle.fill")
-                                        .foregroundColor(.secondary)
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
+                    Spacer()
 
-                        Text("Lets links like myapp:// open this app. Links using the old scheme stop working.")
+                    if !cleanOriginalScheme.isEmpty {
+                        Text("Original \(cleanOriginalScheme)")
                             .font(.caption)
                             .foregroundColor(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
 
-                if !cleanOriginalScheme.isEmpty {
-                    Text("Original \(cleanOriginalScheme)")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                IPAFieldBox {
+                    HStack(spacing: 8) {
+                        TextField("myapp", text: $scheme)
+                            .autocapitalization(.none)
+                            .disableAutocorrection(true)
+                            .font(.system(.body, design: .monospaced))
+                            .lineLimit(1)
+
+                        if !scheme.isEmpty {
+                            Button {
+                                scheme = ""
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundColor(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
                 }
 
                 if !error.isEmpty {
@@ -195,6 +195,11 @@ struct URLEditorView: View {
                         .foregroundColor(.red)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+
+                Text("Lets links like myapp:// open this app. Links using the old scheme stop working.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .cardStyle()
         }
