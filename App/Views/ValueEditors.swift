@@ -156,19 +156,6 @@ struct URLEditorView: View {
     var body: some View {
         IPASheet(title: "URL Scheme", onClose: onClose) {
             VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    Text("Scheme")
-                        .font(.subheadline.weight(.semibold))
-
-                    Spacer()
-
-                    if !cleanOriginalScheme.isEmpty {
-                        Text("Original \(cleanOriginalScheme)")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                }
-
                 IPAFieldBox {
                     HStack(spacing: 8) {
                         TextField("myapp", text: $scheme)
@@ -187,6 +174,21 @@ struct URLEditorView: View {
                             .buttonStyle(.plain)
                         }
                     }
+                }
+
+                Text("Lets links like myapp:// open this app. Links using the old scheme stop working.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(12)
+                    .background(Color.secondary.opacity(0.08))
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+
+                if !cleanOriginalScheme.isEmpty {
+                    Text("Original \(cleanOriginalScheme)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                 }
 
                 if !error.isEmpty {

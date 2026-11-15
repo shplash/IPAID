@@ -48,20 +48,14 @@ struct IPASheet<Content: View>: View {
                     .padding(.horizontal, 16)
                     .padding(.top, 4)
                     .padding(.bottom, 28)
-                    .background(heightReader)
+                    .ipaidMeasureHeight()
                 }
             }
         }
-        .modifier(IPASheetSizing(height: contentHeight, enabled: sizesToContent))
         .onPreferenceChange(IPASheetHeightKey.self) { height in
             contentHeight = height
         }
-    }
-
-    private var heightReader: some View {
-        GeometryReader { proxy in
-            Color.clear.preference(key: IPASheetHeightKey.self, value: proxy.size.height)
-        }
+        .ipaidSheetHeight(sizesToContent ? contentHeight : 0)
     }
 
     private var header: some View {
@@ -91,7 +85,7 @@ struct IPASheet<Content: View>: View {
     }
 }
 
-private struct IPASheetHeightKey: PreferenceKey {
+struct IPASheetHeightKey: PreferenceKey {
     static let defaultValue: CGFloat = 0
 
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
@@ -99,13 +93,26 @@ private struct IPASheetHeightKey: PreferenceKey {
     }
 }
 
-private struct IPASheetSizing: ViewModifier {
+extension View {
+    func ipaidSheetHeight(_ height: CGFloat) -> some View {
+        modifier(IPASheetSizing(height: height))
+    }
+
+    func ipaidMeasureHeight() -> some View {
+        background(
+            GeometryReader { proxy in
+                Color.clear.preference(key: IPASheetHeightKey.self, value: proxy.size.height)
+            }
+        )
+    }
+}
+
+struct IPASheetSizing: ViewModifier {
     let height: CGFloat
-    let enabled: Bool
 
     @ViewBuilder
     func body(content: Content) -> some View {
-        if #available(iOS 16.0, *), enabled {
+        if #available(iOS 16.0, *), height > 0 {
             content.presentationDetents([.height(detentHeight)])
         } else {
             content
@@ -114,10 +121,9 @@ private struct IPASheetSizing: ViewModifier {
 
     private var detentHeight: CGFloat {
         let chrome: CGFloat = 76
-        let measured = height > 0 ? height + chrome : 360
         let limit = UIScreen.main.bounds.height * 0.92
 
-        return min(max(measured, 240), limit)
+        return min(max(height + chrome, 240), limit)
     }
 }
 
@@ -165,6 +171,7 @@ struct IPACardHeader: View {
     let title: String
     var subtitle: String? = nil
     var trailingText: String? = nil
+    var trailingColor: Color = .secondary
     var isExpanded: Bool? = nil
     var tint: Color = .blue
 
@@ -194,7 +201,7 @@ struct IPACardHeader: View {
             if let trailingText, !trailingText.isEmpty {
                 Text(trailingText)
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(trailingColor)
                     .lineLimit(1)
                     .truncationMode(.middle)
             }
@@ -214,6 +221,7 @@ struct IPAExpandableCard<Content: View>: View {
     private let title: String
     private let subtitle: String?
     private let trailingText: String?
+    private let trailingColor: Color
     private let tint: Color
     private let content: Content
 
@@ -224,6 +232,7 @@ struct IPAExpandableCard<Content: View>: View {
         title: String,
         subtitle: String? = nil,
         trailingText: String? = nil,
+        trailingColor: Color = .secondary,
         tint: Color = .blue,
         isExpanded: Binding<Bool>,
         @ViewBuilder content: () -> Content
@@ -232,6 +241,7 @@ struct IPAExpandableCard<Content: View>: View {
         self.title = title
         self.subtitle = subtitle
         self.trailingText = trailingText
+        self.trailingColor = trailingColor
         self.tint = tint
         self._isExpanded = isExpanded
         self.content = content()
@@ -249,6 +259,7 @@ struct IPAExpandableCard<Content: View>: View {
                     title: title,
                     subtitle: subtitle,
                     trailingText: trailingText,
+                    trailingColor: trailingColor,
                     isExpanded: isExpanded,
                     tint: tint
                 )

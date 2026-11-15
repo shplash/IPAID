@@ -105,14 +105,6 @@ struct ContentView: View {
         newURLScheme.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    private var cleanVersion: String {
-        newVersion.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    private var cleanBuild: String {
-        newBuild.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
     private var originalIconImage: UIImage? {
         originalIconData.flatMap(UIImage.init(data:))
     }
@@ -405,7 +397,7 @@ struct ContentView: View {
     private var mainContent: some View {
         ScrollView {
             VStack(spacing: 16) {
-                if !originalFileName.isEmpty {
+                if !originalFileName.isEmpty, exportURL == nil {
                     fileInfoSection
                 }
 
@@ -615,25 +607,29 @@ struct ContentView: View {
     }
 
     private var appOverviewCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             IPACardHeader(icon: "app.badge", title: "App Information")
 
-            HStack(alignment: .center, spacing: 12) {
-                Text(displayName.isEmpty ? "Unnamed App" : displayName)
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Text(originalAppName)
                     .font(.headline)
                     .lineLimit(1)
                     .truncationMode(.middle)
 
                 Spacer(minLength: 8)
 
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text(cleanVersion.isEmpty ? "No version" : "v\(cleanVersion)")
-                        .font(.title3.weight(.semibold))
-                        .foregroundColor(.primary)
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    if !originalVersionLabel.isEmpty {
+                        Text(originalVersionLabel)
+                            .font(.headline)
+                            .foregroundColor(.primary)
+                    }
 
-                    Text(cleanBuild.isEmpty ? "No build number" : "Build \(cleanBuild)")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                    if !originalBuildLabel.isEmpty {
+                        Text(originalBuildLabel)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
                 }
                 .fixedSize(horizontal: true, vertical: false)
             }
@@ -641,11 +637,28 @@ struct ContentView: View {
         .cardStyle()
     }
 
+    private var originalAppName: String {
+        guard let info, !info.displayName.isEmpty else {
+            return "Unnamed App"
+        }
+
+        return info.displayName
+    }
+
+    private var originalVersionLabel: String {
+        IPAFormatting.versionLabel(info?.marketingVersion ?? appVersion)
+    }
+
+    private var originalBuildLabel: String {
+        IPAFormatting.buildLabel(info?.buildNumber ?? appBuild)
+    }
+
     private var bundleIDCard: some View {
         IPAExpandableCard(
             icon: "shippingbox.fill",
             title: "Bundle ID",
-            trailingText: cleanNewBundleID.isEmpty ? "Original \(currentBundleID)" : nil,
+            trailingText: cleanNewBundleID.isEmpty ? MetadataValidation.cannotBeEmpty : nil,
+            trailingColor: .red,
             isExpanded: $bundleIDExpanded
         ) {
             VStack(alignment: .leading, spacing: 12) {
@@ -703,7 +716,7 @@ struct ContentView: View {
                     clearStaleExportState()
                 }
 
-                if bundleIDChanged, !cleanNewBundleID.isEmpty {
+                if bundleIDChanged {
                     Text("Original \(currentBundleID)")
                         .font(.caption)
                         .foregroundColor(.secondary)
@@ -783,11 +796,16 @@ struct ContentView: View {
     }
 
     private var extensionsSubtitle: String {
-        if selectedExtensionsToRemove.isEmpty {
+        let kept = ExtensionSelection.keptCount(
+            available: foundExtensions,
+            removed: selectedExtensionsToRemove
+        )
+
+        if kept == foundExtensions.count {
             return "All \(foundExtensions.count) enabled"
         }
 
-        return "\(foundExtensions.count - selectedExtensionsToRemove.count) of \(foundExtensions.count) enabled"
+        return "\(kept) of \(foundExtensions.count) enabled"
     }
 
     private var extensionsBinding: Binding<Bool> {
@@ -812,7 +830,8 @@ struct ContentView: View {
         IPAExpandableCard(
             icon: "textformat",
             title: "Display Name",
-            subtitle: cleanDisplayName.isEmpty ? "No name" : cleanDisplayName,
+            trailingText: cleanDisplayName.isEmpty ? MetadataValidation.cannotBeEmpty : nil,
+            trailingColor: .red,
             isExpanded: $displayNameExpanded
         ) {
             IPAFieldBox {
@@ -1057,28 +1076,45 @@ struct ContentView: View {
 
     private var outputSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            IPACardHeader(
-                icon: "checkmark.circle.fill",
-                title: "Exported IPA",
-                trailingText: fileSizeSummary
-            )
+            HStack(alignment: .center, spacing: 8) {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(.blue)
+
+                Text("Exported")
+                    .font(.headline.weight(.bold))
+
+                Text(fileSizeSummary)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+
+                Spacer(minLength: 0)
+            }
 
             HStack(spacing: 10) {
                 Image(systemName: "doc.zipper")
                     .foregroundColor(.blue)
 
-                TextField("Exported filename", text: $exportFileName)
-                    .autocapitalization(.none)
-                    .disableAutocorrection(true)
-                    .lineLimit(1)
-                    .ipaidOnSubmit {
-                        renameExportedIPA()
+                GeometryReader { proxy in
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        TextField("Exported filename", text: $exportFileName)
+                            .autocapitalization(.none)
+                            .disableAutocorrection(true)
+                            .lineLimit(1)
+                            .ipaidOnSubmit {
+                                renameExportedIPA()
+                            }
+                            .frame(minWidth: proxy.size.width, alignment: .leading)
                     }
+                }
+                .frame(height: 24)
 
                 Button {
                     exportFileName = ""
                 } label: {
-                    Image(systemName: "xmark.circle.fill")
+                    Image(systemName: "trash")
                         .foregroundColor(.secondary)
                 }
                 .buttonStyle(.plain)
@@ -1087,13 +1123,6 @@ struct ContentView: View {
             .padding(.vertical, 12)
             .background(Color.secondary.opacity(0.08))
             .clipShape(RoundedRectangle(cornerRadius: 12))
-
-            if !exportSummary.isEmpty {
-                Text(exportSummary)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
 
             HStack(spacing: 10) {
                 Button(action: discardExport) {
@@ -1112,7 +1141,14 @@ struct ContentView: View {
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 9)
                 }
-                .ipaidBorderedButton()
+                .ipaidGlassButton(.blue)
+            }
+
+            if !exportSummary.isEmpty {
+                Text(exportSummary)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .cardStyle()
@@ -1140,49 +1176,53 @@ struct ContentView: View {
     private var extensionList: some View {
         VStack(alignment: .leading, spacing: 7) {
 
+            bulkExtensionButton
+
             ForEach(foundExtensions, id: \.self) { path in
                 extensionRow(path)
             }
-
-            Button {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    selectedExtensionsToRemove = []
-
-                    clearStaleExportState()
-                }
-            } label: {
-                HStack(spacing: 9) {
-                    Image(
-                        systemName:
-                            selectedExtensionsToRemove.isEmpty
-                            ? "checkmark.circle.fill"
-                            : "circle"
-                    )
-                    .foregroundColor(
-                        selectedExtensionsToRemove.isEmpty
-                        ? Color.blue
-                        : Color.secondary
-                    )
-
-                    Text(
-                        selectedExtensionsToRemove.isEmpty
-                        ? "All Enabled"
-                        : "Enable All"
-                    )
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundColor(.primary)
-
-                    Spacer()
-                }
-                .font(.subheadline)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 7)
-            }
-            .buttonStyle(.plain)
         }
         .padding(9)
         .background(Color.secondary.opacity(0.06))
         .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    private var bulkExtensionButton: some View {
+        let allEnabled = ExtensionSelection.allEnabled(
+            available: foundExtensions,
+            removed: selectedExtensionsToRemove
+        )
+
+        return Button {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                selectedExtensionsToRemove = ExtensionSelection.bulkSelection(
+                    available: foundExtensions,
+                    removed: selectedExtensionsToRemove
+                )
+
+                clearStaleExportState()
+            }
+        } label: {
+            HStack(spacing: 9) {
+                Image(systemName: allEnabled ? "checkmark.circle.fill" : "circle")
+                    .foregroundColor(allEnabled ? Color.blue : Color.secondary)
+
+                Text(
+                    ExtensionSelection.bulkTitle(
+                        available: foundExtensions,
+                        removed: selectedExtensionsToRemove
+                    )
+                )
+                .font(.subheadline.weight(.semibold))
+                .foregroundColor(.primary)
+
+                Spacer()
+            }
+            .font(.subheadline)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 7)
+        }
+        .buttonStyle(.plain)
     }
 
     private func extensionRow(_ path: String) -> some View {

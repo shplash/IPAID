@@ -8,6 +8,7 @@ struct FileBrowserView: View {
     @StateObject private var model = FileBrowserModel()
     @State private var shareItem: BrowserShareItem?
     @State private var errorMessage: String?
+    @State private var contentHeight: CGFloat = 0
 
     var body: some View {
         ZStack {
@@ -49,9 +50,14 @@ struct FileBrowserView: View {
                     .padding(.horizontal, 16)
                     .padding(.top, 4)
                     .padding(.bottom, 28)
+                    .ipaidMeasureHeight()
                 }
             }
         }
+        .onPreferenceChange(IPASheetHeightKey.self) { height in
+            contentHeight = height
+        }
+        .ipaidSheetHeight(contentHeight)
         .onAppear {
             model.load(ipaURL)
         }
