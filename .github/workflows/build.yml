@@ -26,7 +26,7 @@ jobs:
 
           rm -f "$ICON_DIR"/Icon-*.png
 
-          sips --cropToHeightWidth 800 800 "$SRC" --out "$CROP" >/dev/null
+          sips --cropToHeightWidth 900 900 "$SRC" --out "$CROP" >/dev/null
           sips -z 1024 1024 "$CROP" --out "$BASE" >/dev/null
 
           sips -z 40 40 "$BASE" --out "$ICON_DIR/Icon-20@2x.png"
