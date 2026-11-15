@@ -266,4 +266,36 @@ final class ComparisonAndPresetTests: XCTestCase {
         session.clean()
         XCTAssertFalse(FileManager.default.fileExists(atPath: imported.path))
     }
+
+    func testDiscardRemovesTheExportAndKeepsTheSource() throws {
+        let source = directory.appendingPathComponent("Example.ipa")
+        try Fixtures.makeIPA(at: source)
+        let sourceData = try Data(contentsOf: source)
+
+        let session = try IPASession(directory: directory.appendingPathComponent("Session"))
+        let imported = try session.importIPA(from: source)
+
+        let output = try session.outputURL(for: "Example.ipa")
+        try Data("export".utf8).write(to: output)
+
+        XCTAssertTrue(session.discardExport(at: output))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: output.path))
+        XCTAssertEqual(try Data(contentsOf: imported), sourceData)
+    }
+
+    func testDiscardOfAMissingExportSucceeds() throws {
+        let session = try IPASession(directory: directory.appendingPathComponent("Session"))
+        let output = try session.outputURL(for: "Example.ipa")
+
+        XCTAssertTrue(session.discardExport(at: output))
+    }
+
+    func testDiscardRefusesFilesOutsideTheSession() throws {
+        let session = try IPASession(directory: directory.appendingPathComponent("Session"))
+        let outside = directory.appendingPathComponent("outside.ipa")
+        try Data("keep".utf8).write(to: outside)
+
+        XCTAssertFalse(session.discardExport(at: outside))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: outside.path))
+    }
 }

@@ -49,6 +49,27 @@ final class IPASession {
     func clean() {
         try? FileManager.default.removeItem(at: directory)
     }
+
+    @discardableResult
+    func discardExport(at url: URL) -> Bool {
+        let target = url.standardizedFileURL
+        let root = outputDirectory.standardizedFileURL
+
+        guard target.path.hasPrefix(root.path + "/") else {
+            return false
+        }
+
+        guard FileManager.default.fileExists(atPath: target.path) else {
+            return true
+        }
+
+        do {
+            try FileManager.default.removeItem(at: target)
+            return true
+        } catch {
+            return false
+        }
+    }
 }
 
 enum IPATemporaryStore {

@@ -37,4 +37,29 @@ enum IPAFormatting {
 
         return "\(text.prefix(keep))…\(text.suffix(keep))"
     }
+
+    static let defaultExportSuffix = "-ipaid"
+
+    static func exportSuffix(_ suffix: String) -> String {
+        let trimmed = suffix.trimmingCharacters(in: .whitespacesAndNewlines)
+        let forbidden = CharacterSet(charactersIn: "/\\:*?\"<>|")
+            .union(.newlines)
+
+        return String(trimmed.unicodeScalars.filter { !forbidden.contains($0) })
+    }
+
+    static func exportFileName(originalFileName: String, suffix: String) -> String {
+        let base = originalFileName.isEmpty
+            ? "IPA"
+            : URL(fileURLWithPath: originalFileName).deletingPathExtension().lastPathComponent
+
+        let name = base.isEmpty ? "IPA" : base
+        let clean = exportSuffix(suffix)
+
+        guard !clean.isEmpty, !name.hasSuffix(clean) else {
+            return "\(name).ipa"
+        }
+
+        return "\(name)\(clean).ipa"
+    }
 }

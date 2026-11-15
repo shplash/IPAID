@@ -134,4 +134,60 @@ final class FormatTests: XCTestCase {
         let roundTrip = try IPAArchive.serialize(dictionary, format: .binary)
         XCTAssertEqual(IPAArchive.plistFormat(of: roundTrip), .binary)
     }
+
+    func testExportFileNameUsesTheDefaultSuffix() {
+        XCTAssertEqual(
+            IPAFormatting.exportFileName(originalFileName: "Example.ipa", suffix: "-ipaid"),
+            "Example-ipaid.ipa"
+        )
+    }
+
+    func testExportFileNameWithoutASuffix() {
+        XCTAssertEqual(
+            IPAFormatting.exportFileName(originalFileName: "Example.ipa", suffix: ""),
+            "Example.ipa"
+        )
+    }
+
+    func testExportFileNameWithACustomSuffix() {
+        XCTAssertEqual(
+            IPAFormatting.exportFileName(originalFileName: "Example.ipa", suffix: "-edited"),
+            "Example-edited.ipa"
+        )
+    }
+
+    func testExportFileNameDoesNotRepeatTheSuffix() {
+        XCTAssertEqual(
+            IPAFormatting.exportFileName(originalFileName: "Example-ipaid.ipa", suffix: "-ipaid"),
+            "Example-ipaid.ipa"
+        )
+    }
+
+    func testExportFileNameStripsTheSourceExtension() {
+        XCTAssertEqual(
+            IPAFormatting.exportFileName(originalFileName: "My App.v2.ipa", suffix: "-x"),
+            "My App.v2-x.ipa"
+        )
+    }
+
+    func testExportFileNameFallsBackForAMissingName() {
+        XCTAssertEqual(
+            IPAFormatting.exportFileName(originalFileName: "", suffix: "-ipaid"),
+            "IPA-ipaid.ipa"
+        )
+    }
+
+    func testExportFileNameSanitisesTheSuffix() {
+        XCTAssertEqual(
+            IPAFormatting.exportFileName(originalFileName: "Example.ipa", suffix: "/bad:name"),
+            "Examplebadname.ipa"
+        )
+    }
+
+    func testExportFileNameTrimsWhitespace() {
+        XCTAssertEqual(
+            IPAFormatting.exportFileName(originalFileName: "Example.ipa", suffix: "  -trim  "),
+            "Example-trim.ipa"
+        )
+    }
 }
