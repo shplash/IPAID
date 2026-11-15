@@ -39,7 +39,7 @@ struct FileBrowserView: View {
                         }
 
                         Text(model.footer)
-                            .font(.caption2)
+                            .font(.caption)
                             .foregroundColor(.secondary)
                             .frame(maxWidth: .infinity, alignment: .center)
                     }
@@ -74,7 +74,7 @@ struct FileBrowserView: View {
             }
 
             Text(model.title)
-                .font(.title3.weight(.bold))
+                .font(.title2.weight(.bold))
                 .lineLimit(1)
                 .truncationMode(.middle)
 
@@ -86,11 +86,11 @@ struct FileBrowserView: View {
             }
 
             Button("Done", action: onClose)
-                .font(.subheadline.weight(.semibold))
+                .font(.body.weight(.semibold))
         }
         .padding(.horizontal, 16)
         .padding(.top, 18)
-        .padding(.bottom, 10)
+        .padding(.bottom, 12)
     }
 
     private var fileList: some View {
@@ -144,7 +144,7 @@ struct FileBrowserView: View {
                         .foregroundColor(Color.secondary.opacity(0.6))
                 } else {
                     Text(IPAFormatting.fileSize(item.size))
-                        .font(.caption)
+                        .font(.footnote)
                         .foregroundColor(.secondary)
                         .ipaidMonospacedDigits()
                 }

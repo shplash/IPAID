@@ -33,7 +33,7 @@ struct AdvancedPlistView: View {
 
     private var valuesCard: some View {
         VStack(alignment: .leading, spacing: 0) {
-            IPASectionTitle(icon: "list.bullet.rectangle", title: "Values")
+            IPACardHeader(icon: "list.bullet.rectangle", title: "Values")
 
             if keys.isEmpty {
                 Text("No values.")
@@ -59,12 +59,12 @@ struct AdvancedPlistView: View {
             HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(key)
-                        .font(.system(.caption, design: .monospaced))
+                        .font(.system(.footnote, design: .monospaced))
                         .foregroundColor(removed ? .secondary : .primary)
                         .strikethrough(removed)
 
                     Text(value?.typeName ?? "Unsupported")
-                        .font(.caption2)
+                        .font(.caption)
                         .foregroundColor(.secondary)
                 }
 
@@ -78,7 +78,7 @@ struct AdvancedPlistView: View {
                     Button("Undo") {
                         overrides.reset(key)
                     }
-                    .font(.caption.weight(.semibold))
+                    .font(.footnote.weight(.semibold))
                     .buttonStyle(.plain)
                     .foregroundColor(.blue)
                 } else if let value {
@@ -113,7 +113,7 @@ struct AdvancedPlistView: View {
 
             if protected {
                 Text("Managed by IPAID.")
-                    .font(.caption2)
+                    .font(.caption)
                     .foregroundColor(.secondary)
             }
 
@@ -128,7 +128,7 @@ struct AdvancedPlistView: View {
                             overrides.reset(key)
                             editingKey = nil
                         }
-                        .font(.caption.weight(.semibold))
+                        .font(.footnote.weight(.semibold))
                         .foregroundColor(.blue)
                     }
 
@@ -143,7 +143,7 @@ struct AdvancedPlistView: View {
 
                         editingKey = nil
                     }
-                    .font(.caption.weight(.semibold))
+                    .font(.footnote.weight(.semibold))
                     .foregroundColor(.red)
                 }
             }
@@ -163,23 +163,25 @@ struct AdvancedPlistView: View {
 
             if !editError.isEmpty {
                 Text(editError)
-                    .font(.caption2)
+                    .font(.caption)
                     .foregroundColor(.red)
             }
 
-            HStack(spacing: 14) {
+            HStack(spacing: 18) {
                 Button("Save") {
                     saveEdit(for: key, value: value)
                 }
-                .font(.caption.weight(.semibold))
+                .font(.footnote.weight(.semibold))
                 .foregroundColor(.blue)
+                .padding(.vertical, 4)
 
                 Button("Cancel") {
                     editingKey = nil
                     editError = ""
                 }
-                .font(.caption.weight(.semibold))
+                .font(.footnote.weight(.semibold))
                 .foregroundColor(.secondary)
+                .padding(.vertical, 4)
 
                 Spacer()
             }
@@ -189,7 +191,7 @@ struct AdvancedPlistView: View {
 
     private var addCard: some View {
         VStack(alignment: .leading, spacing: 12) {
-            IPASectionTitle(icon: "plus.circle", title: "Add Value")
+            IPACardHeader(icon: "plus.circle", title: "Add Value")
 
             IPAFieldBox {
                 TextField("Key", text: $newKey)
@@ -219,7 +221,7 @@ struct AdvancedPlistView: View {
 
             if !addError.isEmpty {
                 Text(addError)
-                    .font(.caption2)
+                    .font(.caption)
                     .foregroundColor(.red)
             }
 

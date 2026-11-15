@@ -6,7 +6,6 @@ struct ComparisonView: View {
     let onClose: () -> Void
 
     @State private var secondaryURL: URL?
-    @State private var secondaryName = ""
     @State private var result: IPAComparisonResult?
     @State private var errorMessage: String?
     @State private var isComparing = false
@@ -42,7 +41,6 @@ struct ComparisonView: View {
                 onPick: { url in
                     showPicker = false
                     secondaryURL = url
-                    secondaryName = url.lastPathComponent
                     compare(url)
                 },
                 onCancel: {
@@ -54,7 +52,7 @@ struct ComparisonView: View {
 
     private var fileCard: some View {
         VStack(alignment: .leading, spacing: 12) {
-            IPASectionTitle(icon: "arrow.left.arrow.right", title: "Files")
+            IPACardHeader(icon: "arrow.left.arrow.right", title: "Files")
 
             IPAMetadataRow(label: "Original", value: primaryName, monospaced: false)
 
@@ -81,7 +79,7 @@ struct ComparisonView: View {
 
     private func metadataCard(_ result: IPAComparisonResult) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            IPASectionTitle(icon: "app.badge", title: "Metadata")
+            IPACardHeader(icon: "app.badge", title: "Metadata")
 
             ForEach(result.metadata) { item in
                 IPASubtleDivider()
@@ -89,7 +87,7 @@ struct ComparisonView: View {
                 VStack(alignment: .leading, spacing: 5) {
                     HStack(spacing: 6) {
                         Text(item.label)
-                            .font(.caption.weight(.semibold))
+                            .font(.footnote.weight(.semibold))
                             .foregroundColor(.secondary)
 
                         if item.isDifferent {
@@ -101,7 +99,7 @@ struct ComparisonView: View {
 
                     HStack(alignment: .top, spacing: 8) {
                         Text(item.left)
-                            .font(.system(.caption, design: .monospaced))
+                            .font(.system(.footnote, design: .monospaced))
                             .foregroundColor(item.isDifferent ? .primary : .secondary)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .lineLimit(2)
@@ -113,7 +111,7 @@ struct ComparisonView: View {
                             .padding(.top, 3)
 
                         Text(item.right)
-                            .font(.system(.caption, design: .monospaced))
+                            .font(.system(.footnote, design: .monospaced))
                             .foregroundColor(item.isDifferent ? .primary : .secondary)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .lineLimit(2)
@@ -128,7 +126,7 @@ struct ComparisonView: View {
 
     private func filesCard(_ result: IPAComparisonResult) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            IPASectionTitle(icon: "doc.on.doc", title: "Files")
+            IPACardHeader(icon: "doc.on.doc", title: "Files")
 
             IPAFileCountRow(label: "Added", count: result.addedFiles.count, color: .green)
             IPAFileCountRow(label: "Removed", count: result.removedFiles.count, color: .red)
@@ -137,7 +135,7 @@ struct ComparisonView: View {
             if !result.addedFiles.isEmpty {
                 IPASubtleDivider().padding(.vertical, 6)
                 Text("Added")
-                    .font(.caption.weight(.semibold))
+                    .font(.footnote.weight(.semibold))
                     .foregroundColor(.secondary)
                 IPAPathList(paths: result.addedFiles, limit: 8)
                     .padding(.top, 4)
@@ -146,7 +144,7 @@ struct ComparisonView: View {
             if !result.removedFiles.isEmpty {
                 IPASubtleDivider().padding(.vertical, 6)
                 Text("Removed")
-                    .font(.caption.weight(.semibold))
+                    .font(.footnote.weight(.semibold))
                     .foregroundColor(.secondary)
                 IPAPathList(paths: result.removedFiles, limit: 8)
                     .padding(.top, 4)
@@ -155,7 +153,7 @@ struct ComparisonView: View {
             if !result.changedFiles.isEmpty {
                 IPASubtleDivider().padding(.vertical, 6)
                 Text("Changed")
-                    .font(.caption.weight(.semibold))
+                    .font(.footnote.weight(.semibold))
                     .foregroundColor(.secondary)
                 IPAPathList(paths: result.changedFiles, limit: 8)
                     .padding(.top, 4)

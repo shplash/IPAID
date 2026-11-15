@@ -61,7 +61,7 @@ struct ModificationPreviewView: View {
             IPAIconThumbnail(image: originalIcon, caption: "Original", size: 66)
 
             Image(systemName: "arrow.right")
-                .font(.caption.weight(.semibold))
+                .font(.footnote.weight(.semibold))
                 .foregroundColor(.secondary)
 
             IPAIconThumbnail(image: replacementIcon, caption: "Replacement", size: 66)
@@ -73,7 +73,7 @@ struct ModificationPreviewView: View {
 
     private var changesCard: some View {
         VStack(alignment: .leading, spacing: 0) {
-            IPASectionTitle(icon: "square.and.pencil", title: "Changes")
+            IPACardHeader(icon: "square.and.pencil", title: "Changes")
 
             ForEach(Array(summary.changes.enumerated()), id: \.element.id) { index, change in
                 if index > 0 {
@@ -82,12 +82,12 @@ struct ModificationPreviewView: View {
 
                 VStack(alignment: .leading, spacing: 5) {
                     Text(change.label)
-                        .font(.caption.weight(.semibold))
+                        .font(.footnote.weight(.semibold))
                         .foregroundColor(.secondary)
 
                     HStack(alignment: .top, spacing: 8) {
                         Text(change.original)
-                            .font(.system(.caption, design: .monospaced))
+                            .font(.system(.footnote, design: .monospaced))
                             .foregroundColor(.secondary)
                             .strikethrough()
                             .lineLimit(2)
@@ -99,7 +99,7 @@ struct ModificationPreviewView: View {
                             .padding(.top, 3)
 
                         Text(change.updated)
-                            .font(.system(.caption, design: .monospaced))
+                            .font(.system(.footnote, design: .monospaced))
                             .foregroundColor(.primary)
                             .lineLimit(2)
                             .truncationMode(.middle)
@@ -115,7 +115,7 @@ struct ModificationPreviewView: View {
 
     private var filesCard: some View {
         VStack(alignment: .leading, spacing: 0) {
-            IPASectionTitle(icon: "doc.on.doc", title: "Files")
+            IPACardHeader(icon: "doc.on.doc", title: "Files")
 
             IPAFileCountRow(label: "Added", count: summary.addedFiles.count, color: .green)
             IPAFileCountRow(label: "Removed", count: summary.removedFiles.count, color: .red)
@@ -124,7 +124,7 @@ struct ModificationPreviewView: View {
             if !summary.addedFiles.isEmpty {
                 IPASubtleDivider().padding(.vertical, 6)
                 Text("Added")
-                    .font(.caption.weight(.semibold))
+                    .font(.footnote.weight(.semibold))
                     .foregroundColor(.secondary)
                 IPAPathList(paths: summary.addedFiles, limit: 5)
                     .padding(.top, 4)
@@ -133,7 +133,7 @@ struct ModificationPreviewView: View {
             if !summary.removedFiles.isEmpty {
                 IPASubtleDivider().padding(.vertical, 6)
                 Text("Removed")
-                    .font(.caption.weight(.semibold))
+                    .font(.footnote.weight(.semibold))
                     .foregroundColor(.secondary)
                 IPAPathList(paths: summary.removedFiles, limit: 5)
                     .padding(.top, 4)
@@ -142,7 +142,7 @@ struct ModificationPreviewView: View {
             if !summary.modifiedFiles.isEmpty {
                 IPASubtleDivider().padding(.vertical, 6)
                 Text("Modified")
-                    .font(.caption.weight(.semibold))
+                    .font(.footnote.weight(.semibold))
                     .foregroundColor(.secondary)
                 IPAPathList(paths: summary.modifiedFiles, limit: 5)
                     .padding(.top, 4)
@@ -178,7 +178,7 @@ struct ModificationPreviewView: View {
                 .foregroundColor(.secondary)
 
             Text("The original IPA is not modified.")
-                .font(.caption2)
+                .font(.caption)
                 .foregroundColor(.secondary)
         }
         .cardStyle()

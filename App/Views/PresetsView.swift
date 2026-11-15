@@ -39,7 +39,7 @@ struct PresetsView: View {
 
     private var saveCard: some View {
         VStack(alignment: .leading, spacing: 12) {
-            IPASectionTitle(icon: "square.and.arrow.down", title: "Save Current Changes")
+            IPACardHeader(icon: "square.and.arrow.down", title: "Save Current Changes")
 
             IPAFieldBox {
                 TextField("Preset name", text: $name)
@@ -63,7 +63,7 @@ struct PresetsView: View {
 
     private var presetsCard: some View {
         VStack(alignment: .leading, spacing: 0) {
-            IPASectionTitle(icon: "slider.horizontal.3", title: "Saved Presets")
+            IPACardHeader(icon: "slider.horizontal.3", title: "Saved Presets")
 
             if presets.isEmpty {
                 Text("No presets yet.")
@@ -81,8 +81,8 @@ struct PresetsView: View {
                             .font(.subheadline.weight(.semibold))
                             .lineLimit(1)
 
-                        Text("\(preset.fieldCount) settings")
-                            .font(.caption2)
+                        Text(settingsLabel(for: preset))
+                            .font(.caption)
                             .foregroundColor(.secondary)
                     }
 
@@ -92,23 +92,33 @@ struct PresetsView: View {
                         onApply(preset)
                         onClose()
                     }
-                    .font(.caption.weight(.semibold))
+                    .font(.footnote.weight(.semibold))
                     .foregroundColor(.blue)
                     .buttonStyle(.plain)
+                    .padding(.vertical, 6)
+                    .contentShape(Rectangle())
 
                     Button {
                         presets = store.remove(preset)
                     } label: {
                         Image(systemName: "trash")
-                            .font(.caption)
+                            .font(.footnote)
                             .foregroundColor(.red)
+                            .padding(.vertical, 6)
+                            .padding(.leading, 4)
                     }
                     .buttonStyle(.plain)
                 }
-                .padding(.vertical, 12)
+                .padding(.vertical, 10)
             }
         }
         .cardStyle()
+    }
+
+    private func settingsLabel(for preset: ExportPreset) -> String {
+        let count = preset.fieldCount
+
+        return count == 1 ? "1 setting" : "\(count) settings"
     }
 
     private func save() {

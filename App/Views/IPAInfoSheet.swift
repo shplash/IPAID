@@ -32,7 +32,7 @@ struct IPAInfoSheet: View {
                     .truncationMode(.middle)
 
                 Text(fileName)
-                    .font(.caption2)
+                    .font(.caption)
                     .foregroundColor(.secondary)
                     .lineLimit(1)
                     .truncationMode(.middle)
@@ -45,7 +45,7 @@ struct IPAInfoSheet: View {
 
     private var applicationCard: some View {
         VStack(alignment: .leading, spacing: 0) {
-            IPASectionTitle(icon: "app.badge", title: "Application")
+            IPACardHeader(icon: "app.badge", title: "Application")
 
             IPAMetadataRow(label: "Version", value: value(info.marketingVersion))
             IPASubtleDivider()
@@ -70,16 +70,11 @@ struct IPAInfoSheet: View {
                     showTechnicalDetails.toggle()
                 }
             } label: {
-                HStack {
-                    IPASectionTitle(icon: "cpu", title: "Technical Details")
-
-                    Spacer()
-
-                    Image(systemName: showTechnicalDetails ? "chevron.up" : "chevron.down")
-                        .font(.caption.bold())
-                        .foregroundColor(.secondary)
-                }
-                .contentShape(Rectangle())
+                IPACardHeader(
+                    icon: "cpu",
+                    title: "Technical Details",
+                    isExpanded: showTechnicalDetails
+                )
             }
             .buttonStyle(.plain)
 
@@ -87,17 +82,17 @@ struct IPAInfoSheet: View {
                 IPASubtleDivider()
                     .padding(.top, 12)
 
-                IPAMetadataRow(label: "Executable", value: value(info.executable), monospaced: true)
-                IPASubtleDivider()
                 IPAMetadataRow(
-                    label: "Architectures",
-                    value: info.architectures.isEmpty ? "Unknown" : info.architectures.joined(separator: ", "),
+                    label: "Executable",
+                    value: value(info.executable),
                     monospaced: true
                 )
                 IPASubtleDivider()
-                IPAMetadataRow(label: "Icon sizes", value: "\(info.iconPlan.slots.count)", monospaced: false)
-                IPASubtleDivider()
-                IPAMetadataRow(label: "Bundle path", value: info.appRoot, monospaced: true)
+                IPAMetadataRow(
+                    label: "Bundle path",
+                    value: info.appRoot,
+                    monospaced: true
+                )
             }
         }
         .cardStyle()
