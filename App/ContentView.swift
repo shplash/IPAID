@@ -17,7 +17,6 @@ struct ContentView: View {
     @State private var newBundleID = ""
 
     @State private var displayName = ""
-    @State private var originalDisplayName = ""
     @State private var displayNameExpanded = false
 
     @State private var originalURLScheme = ""
@@ -85,10 +84,6 @@ struct ContentView: View {
         displayName.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    private var cleanOriginalDisplayName: String {
-        originalDisplayName.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
     private var displayedOriginalFileName: String {
         IPAFormatting.middleTruncated(originalFileName, limit: 34)
     }
@@ -104,10 +99,6 @@ struct ContentView: View {
         }
 
         return MetadataValidation.bundleIdentifier(cleanNewBundleID)
-    }
-
-    private var displayNameChanged: Bool {
-        cleanDisplayName != cleanOriginalDisplayName
     }
 
     private var cleanURLScheme: String {
@@ -157,10 +148,6 @@ struct ContentView: View {
             entries: entries,
             modifications: currentModifications
         )
-    }
-
-    private var urlSchemeChanged: Bool {
-        cleanURLScheme != originalURLScheme.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private var extensionRemovalChanged: Bool {
@@ -1327,7 +1314,6 @@ struct ContentView: View {
         newBundleID = ""
 
         displayName = ""
-        originalDisplayName = ""
         displayNameExpanded = false
 
         originalURLScheme = ""
@@ -1420,7 +1406,6 @@ struct ContentView: View {
                     newBundleID = bundle.bundleIdentifier
 
                     displayName = bundle.displayName
-                    originalDisplayName = bundle.displayName
                     displayNameExpanded = false
 
                     originalURLScheme = bundle.urlScheme
