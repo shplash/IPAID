@@ -41,11 +41,13 @@ final class IconFittingTests: XCTestCase {
         XCTAssertEqual(rect.origin.y, 0, accuracy: 0.5)
     }
 
-    func testTallSourceIsCentredHorizontally() {
+    func testTallSourceFillsTheWidthAndOverflowsVertically() {
         let rect = IPAIconFitting.rect(for: CGSize(width: 256, height: 1024), in: canvas)
 
-        XCTAssertEqual(rect.size.width, 256, accuracy: 0.5)
-        XCTAssertEqual(rect.origin.x, (1024 - 256) / 2, accuracy: 0.5)
+        XCTAssertEqual(rect.size.width, 1024, accuracy: 0.5)
+        XCTAssertEqual(rect.size.height, 4096, accuracy: 0.5)
+        XCTAssertEqual(rect.origin.x, 0, accuracy: 0.5)
+        XCTAssertEqual(rect.origin.y, -1536, accuracy: 0.5)
     }
 
     func testCanvasIsAlwaysCovered() {
