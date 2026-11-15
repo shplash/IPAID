@@ -89,6 +89,34 @@ struct IPAInfoSheet: View {
                 )
                 IPASubtleDivider()
                 IPAMetadataRow(
+                    label: "Architectures",
+                    value: info.architectures.isEmpty
+                        ? "Unknown"
+                        : info.architectures.joined(separator: ", "),
+                    monospaced: true
+                )
+                IPASubtleDivider()
+                IPAMetadataRow(
+                    label: "Devices",
+                    value: info.deviceFamilies.isEmpty ? "Unknown" : info.deviceFamilyLabel
+                )
+
+                if !info.targetSDK.isEmpty {
+                    IPASubtleDivider()
+                    IPAMetadataRow(
+                        label: "Built with SDK",
+                        value: info.targetSDK,
+                        monospaced: true
+                    )
+                }
+
+                IPASubtleDivider()
+                IPAMetadataRow(
+                    label: "Signed",
+                    value: info.isSigned ? "Yes — re-sign after export" : "No"
+                )
+                IPASubtleDivider()
+                IPAMetadataRow(
                     label: "Bundle path",
                     value: info.appRoot,
                     monospaced: true

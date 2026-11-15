@@ -175,6 +175,8 @@ enum IPAExporter {
                     data = replacement
                 } else if let replacement = iconFiles[entry.path] {
                     data = replacement
+                } else if let edited = modifications.editedFiles[entry.path] {
+                    data = edited
                 } else {
                     data = try source.data(at: entry.path)
                 }

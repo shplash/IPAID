@@ -9,6 +9,7 @@ struct IPAModifications: Equatable {
     var removedExtensions: Set<String> = []
     var icon: IPAIconReplacement?
     var plistOverrides = InfoPlistOverrides()
+    var editedFiles: [String: Data] = [:]
 
     var trimmedBundleIdentifier: String {
         bundleIdentifier.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -62,7 +63,8 @@ struct IPAModifications: Equatable {
             urlSchemeChanged(from: info) ||
             !removedExtensions.isEmpty ||
             icon != nil ||
-            !plistOverrides.isEmpty
+            !plistOverrides.isEmpty ||
+            !editedFiles.isEmpty
     }
 
     func problems(comparedTo info: IPABundleInfo) -> [String] {
@@ -242,6 +244,19 @@ struct IPAModificationSummary: Equatable {
             )
         }
 
+        if !modifications.editedFiles.isEmpty {
+            let count = modifications.editedFiles.count
+
+            changes.append(
+                IPAModificationChange(
+                    id: "editedFiles",
+                    label: "Edited files",
+                    original: count == 1 ? "1 file" : "\(count) files",
+                    updated: "Saved"
+                )
+            )
+        }
+
         let removedFiles = entries
             .filter { entry in
                 modifications.removedExtensions.contains { root in
@@ -274,6 +289,10 @@ struct IPAModificationSummary: Equatable {
             for slot in info.iconPlan.existingSlots where icon.files[slot.path] != nil {
                 modifiedFiles.append(slot.path)
             }
+        }
+
+        for path in modifications.editedFiles.keys where !modifications.removedExtensions.contains(where: { path.hasPrefix($0) }) {
+            modifiedFiles.append(path)
         }
 
         self.changes = changes

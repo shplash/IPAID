@@ -3,10 +3,11 @@ import UIKit
 
 struct FileBrowserView: View {
     let ipaURL: URL
+    @Binding var editedFiles: [String: Data]
     let onClose: () -> Void
 
     @StateObject private var model = FileBrowserModel()
-    @State private var shareItem: BrowserShareItem?
+    @State private var presentation: BrowserPresentation?
     @State private var errorMessage: String?
     @State private var contentHeight: CGFloat = 0
 
@@ -42,6 +43,17 @@ struct FileBrowserView: View {
                             fileList
                         }
 
+                        if !editedFiles.isEmpty {
+                            Text(
+                                editedFiles.count == 1
+                                    ? "1 file edited"
+                                    : "\(editedFiles.count) files edited"
+                            )
+                            .font(.caption)
+                            .foregroundColor(.blue)
+                            .frame(maxWidth: .infinity, alignment: .center)
+                        }
+
                         Text(model.footer)
                             .font(.caption)
                             .foregroundColor(.secondary)
@@ -61,8 +73,20 @@ struct FileBrowserView: View {
         .onAppear {
             model.load(ipaURL)
         }
-        .sheet(item: $shareItem) { item in
-            ActivityView(activityItems: [item.url])
+        .sheet(item: $presentation) { item in
+            switch item {
+            case let .share(url):
+                ActivityView(activityItems: [url])
+
+            case let .edit(edit):
+                FileTextEditorView(
+                    edit: edit,
+                    onSave: { data in
+                        editedFiles[edit.path] = data
+                    },
+                    onClose: { presentation = nil }
+                )
+            }
         }
     }
 
@@ -116,52 +140,95 @@ struct FileBrowserView: View {
     }
 
     private func row(for item: BrowserItem) -> some View {
-        Button {
-            errorMessage = nil
+        HStack(spacing: 8) {
+            Button {
+                errorMessage = nil
 
-            if item.isDirectory {
-                model.open(item)
+                if item.isDirectory {
+                    model.open(item)
+                    return
+                }
+
+                model.extract(item) { result in
+                    switch result {
+                    case let .success(url):
+                        presentation = .share(url)
+                    case let .failure(error):
+                        errorMessage = error.localizedDescription
+                    }
+                }
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: icon(for: item))
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(item.isDirectory ? .blue : .secondary)
+                        .frame(width: 24)
+
+                    Text(item.name)
+                        .font(.subheadline)
+                        .foregroundColor(.primary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+
+                    Spacer(minLength: 10)
+
+                    if item.isDirectory {
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(Color.secondary.opacity(0.6))
+                    } else {
+                        Text(IPAFormatting.fileSize(item.size))
+                            .font(.footnote)
+                            .foregroundColor(.secondary)
+                            .ipaidMonospacedDigits()
+                    }
+                }
+                .contentShape(Rectangle())
+                .padding(.vertical, 12)
+            }
+            .buttonStyle(.plain)
+
+            if item.isEditable {
+                Button {
+                    beginEdit(item)
+                } label: {
+                    Text("Edit")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundColor(.blue)
+                        .padding(.vertical, 6)
+                        .padding(.horizontal, 4)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private func beginEdit(_ item: BrowserItem) {
+        errorMessage = nil
+
+        if let pending = editedFiles[item.path] {
+            guard let text = TextFileEditing.decode(pending) else {
+                errorMessage = "This file cannot be edited as text."
                 return
             }
 
-            model.extract(item) { result in
-                switch result {
-                case let .success(url):
-                    shareItem = BrowserShareItem(url: url)
-                case let .failure(error):
-                    errorMessage = error.localizedDescription
-                }
-            }
-        } label: {
-            HStack(spacing: 12) {
-                Image(systemName: icon(for: item))
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(item.isDirectory ? .blue : .secondary)
-                    .frame(width: 24)
-
-                Text(item.name)
-                    .font(.subheadline)
-                    .foregroundColor(.primary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-
-                Spacer(minLength: 10)
-
-                if item.isDirectory {
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundColor(Color.secondary.opacity(0.6))
-                } else {
-                    Text(IPAFormatting.fileSize(item.size))
-                        .font(.footnote)
-                        .foregroundColor(.secondary)
-                        .ipaidMonospacedDigits()
-                }
-            }
-            .contentShape(Rectangle())
-            .padding(.vertical, 12)
+            presentation = .edit(
+                BrowserFileEdit(path: item.path, name: item.name, text: text)
+            )
+            return
         }
-        .buttonStyle(.plain)
+
+        do {
+            presentation = .edit(
+                BrowserFileEdit(
+                    path: item.path,
+                    name: item.name,
+                    text: try model.text(of: item)
+                )
+            )
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 
     private func icon(for item: BrowserItem) -> String {
@@ -189,15 +256,32 @@ struct BrowserItem: Identifiable {
     let name: String
     let isDirectory: Bool
     let size: Int64
+    var isEditable: Bool = false
 
     var id: String {
         path
     }
 }
 
-struct BrowserShareItem: Identifiable {
+struct BrowserFileEdit: Identifiable {
     let id = UUID()
-    let url: URL
+    let path: String
+    let name: String
+    let text: String
+}
+
+enum BrowserPresentation: Identifiable {
+    case share(URL)
+    case edit(BrowserFileEdit)
+
+    var id: String {
+        switch self {
+        case let .share(url):
+            return "share-\(url.absoluteString)"
+        case let .edit(edit):
+            return "edit-\(edit.id)"
+        }
+    }
 }
 
 final class FileBrowserModel: ObservableObject {
@@ -314,6 +398,32 @@ final class FileBrowserModel: ObservableObject {
         }
     }
 
+    func text(of item: BrowserItem) throws -> String {
+        guard let archive else {
+            throw SimpleError("The IPA is no longer open.")
+        }
+
+        let data = try archive.data(at: item.path)
+
+        guard let text = TextFileEditing.decode(data) else {
+            throw SimpleError("This file cannot be edited as text.")
+        }
+
+        return text
+    }
+
+    private func isEditable(_ path: String) -> Bool {
+        guard let archive else {
+            return false
+        }
+
+        guard TextFileEditing.isEditablePath(path) else {
+            return false
+        }
+
+        return !TextFileEditing.isExcludedSystemPlist(path, info: archive.info)
+    }
+
     private func addParentDirectories(of path: String) {
         var components = path.split(separator: "/").map(String.init)
 
@@ -371,7 +481,8 @@ final class FileBrowserModel: ObservableObject {
                     path: entry.path,
                     name: (entry.path as NSString).lastPathComponent,
                     isDirectory: false,
-                    size: Int64(entry.uncompressedSize)
+                    size: Int64(entry.uncompressedSize),
+                    isEditable: isEditable(entry.path)
                 )
             )
         }

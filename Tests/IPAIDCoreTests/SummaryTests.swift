@@ -213,6 +213,23 @@ final class SummaryTests: XCTestCase {
         XCTAssertEqual(exported.info.marketingVersion, "9.9")
     }
 
+    func testEditedFilesAppearInTheSummary() throws {
+        let archive = try makeArchive()
+        let target = "Payload/Example.app/en.lproj/Localizable.strings"
+
+        var modifications = Fixtures.modifications(for: archive.info)
+        modifications.editedFiles[target] = Data("\"hello\" = \"Edited\";".utf8)
+
+        let summary = IPAModificationSummary(
+            info: archive.info,
+            entries: archive.entries,
+            modifications: modifications
+        )
+
+        XCTAssertTrue(summary.modifiedFiles.contains(target))
+        XCTAssertTrue(summary.changes.contains { $0.id == "editedFiles" })
+    }
+
     func testExtensionRemovalIsListedInTheSummary() throws {
         let archive = try makeArchive()
         let root = archive.info.extensions[0].root

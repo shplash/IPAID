@@ -157,33 +157,31 @@ struct URLEditorView: View {
         IPASheet(title: "URL Scheme", onClose: onClose) {
             VStack(alignment: .leading, spacing: 12) {
                 IPAFieldBox {
-                    HStack(spacing: 8) {
-                        TextField("myapp", text: $scheme)
-                            .autocapitalization(.none)
-                            .disableAutocorrection(true)
-                            .font(.system(.body, design: .monospaced))
-                            .lineLimit(1)
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(spacing: 8) {
+                            TextField("myapp", text: $scheme)
+                                .autocapitalization(.none)
+                                .disableAutocorrection(true)
+                                .font(.system(.body, design: .monospaced))
+                                .lineLimit(1)
 
-                        if !scheme.isEmpty {
-                            Button {
-                                scheme = ""
-                            } label: {
-                                Image(systemName: "xmark.circle.fill")
-                                    .foregroundColor(.secondary)
+                            if !scheme.isEmpty {
+                                Button {
+                                    scheme = ""
+                                } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .foregroundColor(.secondary)
+                                }
+                                .buttonStyle(.plain)
                             }
-                            .buttonStyle(.plain)
                         }
+
+                        Text("Lets links like myapp:// open this app. Links using the old scheme stop working.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
-
-                Text("Lets links like myapp:// open this app. Links using the old scheme stop working.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(12)
-                    .background(Color.secondary.opacity(0.08))
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
 
                 if !cleanOriginalScheme.isEmpty {
                     Text("Original \(cleanOriginalScheme)")

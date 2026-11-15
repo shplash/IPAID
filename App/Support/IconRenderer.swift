@@ -7,11 +7,21 @@ enum IconRenderer {
     static func makeFiles(image: UIImage, plan: IPAIconPlan) -> IconRenderResult {
         var files: [String: Data] = [:]
         var problems: [String] = []
-        let source = trimmed(normalized(image, limit: analysisLimit))
+        let canvas = canvasImage(from: image)
+
+        if IPAIconFitting.isUpscaling(
+            source: canvasSize(of: image),
+            canvas: CGSize(
+                width: IPAIconFitting.canvasSize,
+                height: IPAIconFitting.canvasSize
+            )
+        ) {
+            problems.append("This image is smaller than 1024×1024, so it is scaled up.")
+        }
 
         for slot in plan.slots {
             guard let data = pngData(
-                image: source,
+                image: canvas,
                 width: slot.pixelWidth,
                 height: slot.pixelHeight
             ) else {
@@ -22,11 +32,28 @@ enum IconRenderer {
             files[slot.path] = data
         }
 
-        if image.size.width < 512 || image.size.height < 512 {
-            problems.append("A larger source image (1024×1024 or more) gives sharper results.")
-        }
-
         return IconRenderResult(files: files, problems: problems)
+    }
+
+    static func canvasImage(from image: UIImage) -> UIImage {
+        let side = IPAIconFitting.canvasSize
+        let prepared = trimmed(normalized(image, limit: analysisLimit))
+        let size = CGSize(width: side, height: side)
+        let format = UIGraphicsImageRendererFormat.default()
+        format.opaque = false
+        format.scale = 1
+
+        return UIGraphicsImageRenderer(size: size, format: format).image { context in
+            context.cgContext.interpolationQuality = .high
+            prepared.draw(in: IPAIconFitting.rect(for: prepared.size, in: size))
+        }
+    }
+
+    static func canvasSize(of image: UIImage) -> CGSize {
+        CGSize(
+            width: image.size.width * image.scale,
+            height: image.size.height * image.scale
+        )
     }
 
     static func normalized(_ image: UIImage, limit: CGFloat) -> UIImage {
@@ -65,25 +92,19 @@ enum IconRenderer {
         format.opaque = false
         format.scale = 1
 
-        let renderer = UIGraphicsImageRenderer(size: size, format: format)
-        let rendered = renderer.image { _ in
-            let scale = max(
-                size.width / image.size.width,
-                size.height / image.size.height
-            )
-            let drawSize = CGSize(
-                width: image.size.width * scale,
-                height: image.size.height * scale
-            )
-            let origin = CGPoint(
-                x: (size.width - drawSize.width) / 2,
-                y: (size.height - drawSize.height) / 2
-            )
+        let rect = IPAIconFitting.rect(for: image.size, in: size)
 
-            image.draw(in: CGRect(origin: origin, size: drawSize))
+        let renderer = UIGraphicsImageRenderer(size: size, format: format)
+        let rendered = renderer.image { context in
+            context.cgContext.interpolationQuality = .high
+            image.draw(in: rect)
         }
 
         return rendered.pngData()
+    }
+
+    static func canvasData(image: UIImage, size: CGFloat = IPAIconFitting.canvasSize) -> Data? {
+        pngData(image: canvasImage(from: image), width: Int(size), height: Int(size))
     }
 
     static func trimmed(_ image: UIImage) -> UIImage {

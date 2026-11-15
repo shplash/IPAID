@@ -102,6 +102,20 @@ final class FingerprintTests: XCTestCase {
         XCTAssertNotEqual(plain, modifications.fingerprint)
     }
 
+    func testFingerprintTracksEditedFiles() {
+        let plain = baseModifications()
+
+        var edited = plain
+        edited.editedFiles["Payload/Example.app/config.txt"] = Data("a".utf8)
+
+        XCTAssertNotEqual(plain.fingerprint, edited.fingerprint)
+
+        var changed = edited
+        changed.editedFiles["Payload/Example.app/config.txt"] = Data("b".utf8)
+
+        XCTAssertNotEqual(edited.fingerprint, changed.fingerprint)
+    }
+
     func testFingerprintIsStableAcrossInstances() {
         let first = baseModifications().fingerprint
         let second = baseModifications().fingerprint

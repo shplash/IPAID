@@ -179,13 +179,66 @@ struct IPABundleInfo: Equatable {
     let iconPlan: IPAIconPlan
     let architectures: [String]
     let fileSize: Int64
+    var targetSDK: String = ""
+    var deviceFamilies: [String] = []
+    var isSigned: Bool = false
 
     var executablePath: String {
         executable.isEmpty ? appRoot : appRoot + executable
     }
+
+    var deviceFamilyLabel: String {
+        deviceFamilies.isEmpty ? "" : deviceFamilies.joined(separator: ", ")
+    }
 }
 
 enum IPABundleParsing {
+
+    static func deviceFamilies(from dictionary: [String: Any]) -> [String] {
+        guard let families = dictionary["UIDeviceFamily"] as? [Any] else {
+            return []
+        }
+
+        var result: [String] = []
+
+        for item in families {
+            guard let number = item as? Int else { continue }
+
+            let name: String
+
+            switch number {
+            case 1: name = "iPhone"
+            case 2: name = "iPad"
+            case 3: name = "Apple TV"
+            case 4: name = "Apple Watch"
+            case 6: name = "Mac"
+            case 7: name = "Vision"
+            default: name = "family \(number)"
+            }
+
+            if !result.contains(name) {
+                result.append(name)
+            }
+        }
+
+        return result
+    }
+
+    static func targetSDK(from dictionary: [String: Any]) -> String {
+        for key in ["DTSDKName", "DTPlatformVersion", "DTSDKBuild"] {
+            if let value = dictionary[key] as? String, !value.isEmpty {
+                return value
+            }
+        }
+
+        return ""
+    }
+
+    static func isSigned(entries: [IPAEntry], appRoot: String) -> Bool {
+        let resource = appRoot + "_CodeSignature/CodeResources"
+
+        return entries.contains { $0.path == resource }
+    }
 
     static func displayName(from dictionary: [String: Any], appRoot: String) -> String {
         if let name = dictionary["CFBundleDisplayName"] as? String, !name.isEmpty {

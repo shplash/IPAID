@@ -190,4 +190,37 @@ final class FormatTests: XCTestCase {
             "Example-trim.ipa"
         )
     }
+
+    func testDeviceFamiliesMapToNames() {
+        XCTAssertEqual(
+            IPABundleParsing.deviceFamilies(from: ["UIDeviceFamily": [1, 2]]),
+            ["iPhone", "iPad"]
+        )
+        XCTAssertEqual(
+            IPABundleParsing.deviceFamilies(from: ["UIDeviceFamily": [1]]),
+            ["iPhone"]
+        )
+        XCTAssertEqual(
+            IPABundleParsing.deviceFamilies(from: ["UIDeviceFamily": [9]]),
+            ["family 9"]
+        )
+        XCTAssertTrue(IPABundleParsing.deviceFamilies(from: [:]).isEmpty)
+    }
+
+    func testTargetSDKFallsBackThroughKnownKeys() {
+        XCTAssertEqual(IPABundleParsing.targetSDK(from: ["DTSDKName": "iphoneos18.0"]), "iphoneos18.0")
+        XCTAssertEqual(IPABundleParsing.targetSDK(from: ["DTPlatformVersion": "18.0"]), "18.0")
+        XCTAssertEqual(IPABundleParsing.targetSDK(from: [:]), "")
+    }
+
+    func testSigningDetectionUsesTheCodeResourcesEntry() throws {
+        let directory = try Fixtures.temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let source = directory.appendingPathComponent("Example.ipa")
+        try Fixtures.makeIPA(at: source)
+        let archive = try IPAArchive(url: source)
+
+        XCTAssertFalse(archive.info.isSigned)
+    }
 }

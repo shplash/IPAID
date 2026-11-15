@@ -9,7 +9,7 @@ struct ContentView: View {
     @AppStorage("ipaidAppearance") private var appearanceMode = "system"
     @AppStorage("ipaidToolsExpanded") private var toolsExpanded = true
     @AppStorage("ipaidExportSuffix") private var exportSuffix = IPAFormatting.defaultExportSuffix
-
+    @AppStorage("ipaidSkipReview") private var skipReview = false
     @State private var ipaURL: URL?
     @State private var originalFileName = ""
 
@@ -35,13 +35,15 @@ struct ContentView: View {
 
     @State private var copiedBundleID = false
 
-    @State private var exportSummary = ""
-
     @State private var appVersion = ""
     @State private var appBuild = ""
 
     @State private var exportURL: URL?
     @State private var exportFileName = ""
+    @State private var exportSummary = ""
+    @State private var exportedSummary: IPAModificationSummary?
+    @State private var exportReviewExpanded = false
+    @State private var editedFiles: [String: Data] = [:]
     @State private var inputFileSize: Int64 = 0
     @State private var outputFileSize: Int64 = 0
     @State private var lastExportSignature: String?
@@ -120,6 +122,7 @@ struct ContentView: View {
 
         modifications.removedExtensions = selectedExtensionsToRemove
         modifications.plistOverrides = plistOverrides
+        modifications.editedFiles = editedFiles
 
         if replacementImage != nil, !replacementIconFiles.isEmpty {
             modifications.icon = IPAIconReplacement(
@@ -319,6 +322,7 @@ struct ContentView: View {
                     if let ipaURL {
                         FileBrowserView(
                             ipaURL: ipaURL,
+                            editedFiles: $editedFiles,
                             onClose: { activeSheet = nil }
                         )
                     }
@@ -434,8 +438,10 @@ struct ContentView: View {
             VStack(spacing: 0) {
                 InfoView(
                     currentVersion: currentAppVersion,
+                    currentBuild: currentAppBuild,
                     appearanceMode: $appearanceMode,
-                    exportSuffix: $exportSuffix
+                    exportSuffix: $exportSuffix,
+                    skipReview: $skipReview
                 )
                 Spacer(minLength: 34)
             }
@@ -478,6 +484,12 @@ struct ContentView: View {
         ) as? String ?? "Unknown"
     }
 
+    private var currentAppBuild: String {
+        Bundle.main.object(
+            forInfoDictionaryKey: "CFBundleVersion"
+        ) as? String ?? ""
+    }
+
     private var selectedColorScheme: ColorScheme? {
         switch appearanceMode {
         case "light":
@@ -491,18 +503,14 @@ struct ContentView: View {
 
     private var headerSection: some View {
         HStack(alignment: .center, spacing: 12) {
-            HStack(alignment: .bottom, spacing: 8) {
+            HStack(alignment: .bottom, spacing: 3) {
                 Text("IPAID")
                     .font(.system(size: 34, weight: .bold, design: .rounded))
 
                 Text("v\(currentAppVersion)")
                     .font(.caption.weight(.bold))
                     .foregroundColor(.secondary)
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 4)
-                    .background(Color.secondary.opacity(0.12))
-                    .clipShape(Capsule())
-                    .padding(.bottom, 6)
+                    .padding(.bottom, 3)
             }
 
             Spacer(minLength: 0)
@@ -724,7 +732,7 @@ struct ContentView: View {
                         .truncationMode(.middle)
                 }
 
-                if !bundleIDProblem.isEmpty {
+                if !cleanNewBundleID.isEmpty, !bundleIDProblem.isEmpty {
                     Text(bundleIDProblem)
                         .font(.caption)
                         .foregroundColor(.red)
@@ -1075,83 +1083,107 @@ struct ContentView: View {
     }
 
     private var outputSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .center, spacing: 8) {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(.blue)
-
-                Text("Exported")
-                    .font(.headline.weight(.bold))
-
-                Text(fileSizeSummary)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-
-                Spacer(minLength: 0)
+        VStack(spacing: 12) {
+            if let summary = exportedSummary {
+                exportedReviewCard(summary)
             }
 
-            HStack(spacing: 10) {
-                Image(systemName: "doc.zipper")
-                    .foregroundColor(.blue)
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .center, spacing: 8) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(.blue)
 
-                GeometryReader { proxy in
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        TextField("Exported filename", text: $exportFileName)
-                            .autocapitalization(.none)
-                            .disableAutocorrection(true)
-                            .lineLimit(1)
-                            .ipaidOnSubmit {
-                                renameExportedIPA()
-                            }
-                            .frame(minWidth: proxy.size.width, alignment: .leading)
-                    }
-                }
-                .frame(height: 24)
+                    Text("Exported")
+                        .font(.headline.weight(.bold))
 
-                Button {
-                    exportFileName = ""
-                } label: {
-                    Image(systemName: "trash")
+                    Text(fileSizeSummary)
+                        .font(.caption)
                         .foregroundColor(.secondary)
-                }
-                .buttonStyle(.plain)
-            }
-            .padding(.horizontal, 13)
-            .padding(.vertical, 12)
-            .background(Color.secondary.opacity(0.08))
-            .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
 
-            HStack(spacing: 10) {
-                Button(action: discardExport) {
-                    Text("Discard")
+                    Spacer(minLength: 0)
+                }
+
+                HStack(spacing: 10) {
+                    Image(systemName: "doc.zipper")
+                        .foregroundColor(.blue)
+
+                    GeometryReader { proxy in
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            TextField("Exported filename", text: $exportFileName)
+                                .autocapitalization(.none)
+                                .disableAutocorrection(true)
+                                .lineLimit(1)
+                                .ipaidOnSubmit {
+                                    renameExportedIPA()
+                                }
+                                .frame(minWidth: proxy.size.width, alignment: .leading)
+                        }
+                    }
+                    .frame(height: 24)
+
+                    Button {
+                        exportFileName = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, 13)
+                .padding(.vertical, 12)
+                .background(Color.secondary.opacity(0.08))
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+
+                HStack(spacing: 10) {
+                    Button(action: discardExport) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "trash")
+
+                            Text("Discard")
+                        }
                         .font(.subheadline.weight(.semibold))
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 9)
-                }
-                .ipaidGlassButton(.red)
+                        .frame(height: 22)
+                    }
+                    .ipaidGlassButton(.red)
 
-                Button {
-                    activeSheet = .share
-                } label: {
-                    Label("Save / Share", systemImage: "square.and.arrow.up")
-                        .font(.subheadline.weight(.semibold))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 9)
+                    Button {
+                        activeSheet = .share
+                    } label: {
+                        Label("Save / Share", systemImage: "square.and.arrow.up")
+                            .font(.subheadline.weight(.semibold))
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 22)
+                    }
+                    .ipaidGlassButton(.blue)
                 }
-                .ipaidGlassButton(.blue)
-            }
 
-            if !exportSummary.isEmpty {
-                Text(exportSummary)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                if !exportSummary.isEmpty {
+                    Text(exportSummary)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
+            .cardStyle()
         }
-        .cardStyle()
+    }
+
+    private func exportedReviewCard(_ summary: IPAModificationSummary) -> some View {
+        IPAExpandableCard(
+            icon: "checklist",
+            title: "Review Changes",
+            isExpanded: $exportReviewExpanded
+        ) {
+            ModificationReviewContent(
+                summary: summary,
+                originalIcon: originalIconImage,
+                replacementIcon: replacementImage
+            )
+        }
     }
 
     private var fileSizeSummary: String {
@@ -1168,6 +1200,8 @@ struct ContentView: View {
         exportURL = nil
         exportFileName = ""
         exportSummary = ""
+        exportedSummary = nil
+        exportReviewExpanded = false
         inputFileSize = 0
         outputFileSize = 0
         lastExportSignature = nil
@@ -1401,6 +1435,9 @@ struct ContentView: View {
         copiedBundleID = false
 
         exportSummary = ""
+        exportedSummary = nil
+        exportReviewExpanded = false
+        editedFiles = [:]
 
         appVersion = ""
         appBuild = ""
@@ -1492,6 +1529,9 @@ struct ContentView: View {
                     duplicateMode = false
 
                     exportSummary = ""
+                    exportedSummary = nil
+                    exportReviewExpanded = false
+                    editedFiles = [:]
 
                     exportURL = nil
                     exportFileName = ""
@@ -1530,8 +1570,8 @@ struct ContentView: View {
         }
 
         DispatchQueue.global(qos: .userInitiated).async {
-            let preview = IconRenderer.trimmed(image)
-            let result = IconRenderer.makeFiles(image: preview, plan: plan)
+            let preview = IconRenderer.canvasImage(from: image)
+            let result = IconRenderer.makeFiles(image: image, plan: plan)
 
             DispatchQueue.main.async {
                 guard !result.files.isEmpty else {
@@ -1600,7 +1640,12 @@ struct ContentView: View {
         }
 
         errorMessage = nil
-        activeSheet = .modificationPreview
+
+        if skipReview {
+            performExport()
+        } else {
+            activeSheet = .modificationPreview
+        }
     }
 
     private func performExport() {
@@ -1681,6 +1726,8 @@ struct ContentView: View {
                     outputFileSize = result.fileSize
                     lastExportSignature = signature
                     exportSummary = exportSummaryText(summary)
+                    exportedSummary = result.summary
+                    exportReviewExpanded = false
 
                     extensionsExpanded = false
                     expandedExtensionInfo = nil

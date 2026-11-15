@@ -50,7 +50,8 @@ jobs:
             -configuration Release \
             -sdk iphoneos \
             -derivedDataPath build \
-            CODE_SIGNING_ALLOWED=NO
+            CODE_SIGNING_ALLOWED=NO \
+            CURRENT_PROJECT_VERSION="${{ github.run_number }}"
 
       - name: Package IPA
         run: |
@@ -67,6 +68,11 @@ jobs:
           PLIST="build/Build/Products/Release-iphoneos/IPAID.app/Info.plist"
           VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$PLIST")
           BUILD=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$PLIST")
+          echo "Built IPAID $VERSION (build $BUILD) from run ${{ github.run_number }}"
+          if [ "$BUILD" != "${{ github.run_number }}" ]; then
+            echo "ERROR: the app reports build $BUILD but this run is ${{ github.run_number }}."
+            exit 1
+          fi
           TAG="builds"
           if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release create "$TAG" --draft \

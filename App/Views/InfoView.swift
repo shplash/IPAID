@@ -3,15 +3,21 @@ import UIKit
 
 struct InfoView: View {
     let currentVersion: String
+    let currentBuild: String
     @Binding var appearanceMode: String
     @Binding var exportSuffix: String
+    @Binding var skipReview: Bool
 
     @State private var isCheckingForUpdate = false
     @State private var updateAlert: UpdateAlert?
 
     private let githubURL = URL(string: "https://github.com/shplash/IPAID")!
-    private let reportIssueURL = URL(string: "https://tally.so/r/gDE8pP")!
-    private let featureRequestURL = URL(string: "https://tally.so/r/9q8Ag5")!
+    private let reportIssueURL = URL(
+        string: "https://github.com/shplash/IPAID/issues/new?template=bug_report.yml"
+    )!
+    private let featureRequestURL = URL(
+        string: "https://github.com/shplash/IPAID/issues/new?template=feature_request.yml"
+    )!
     private let supportURL = URL(string: "https://ko-fi.com/shplash")!
 
     var body: some View {
@@ -43,6 +49,9 @@ struct InfoView: View {
             appearanceControl
                 .padding(.top, 15)
                 .padding(.bottom, 4)
+
+            skipReviewRow
+                .padding(.top, 14)
 
             exportSuffixField
                 .padding(.top, 18)
@@ -106,6 +115,11 @@ struct InfoView: View {
                 .foregroundColor(.secondary)
                 .padding(.top, 12)
 
+            Text(appVersionText)
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .padding(.top, 2)
+
             Text("Built with SwiftUI and ZIPFoundation")
                 .font(.caption)
                 .foregroundColor(.secondary)
@@ -121,10 +135,41 @@ struct InfoView: View {
         .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 
+    private var appVersionText: String {
+        currentBuild.isEmpty
+            ? "Version \(currentVersion)"
+            : "Version \(currentVersion) (build \(currentBuild))"
+    }
+
+    private var skipReviewRow: some View {
+        Toggle(isOn: $skipReview) {
+            HStack(spacing: 11) {
+                settingIcon("forward.end.fill")
+
+                Text("Skip Review Changes")
+                    .font(.subheadline.weight(.semibold))
+            }
+        }
+        .toggleStyle(SwitchToggleStyle(tint: .blue))
+    }
+
+    private func settingIcon(_ name: String) -> some View {
+        Image(systemName: name)
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundColor(.white)
+            .frame(width: 22, height: 22)
+            .background(Color.primary.opacity(0.55))
+            .clipShape(Circle())
+    }
+
     private var exportSuffixField: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Export filename suffix")
-                .font(.subheadline.weight(.semibold))
+            HStack(spacing: 11) {
+                settingIcon("tag.fill")
+
+                Text("Exported Filename Suffix")
+                    .font(.subheadline.weight(.semibold))
+            }
 
             IPAFieldBox {
                 HStack(spacing: 8) {

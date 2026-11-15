@@ -141,7 +141,10 @@ final class IPAArchive {
             extensions: extensions,
             iconPlan: iconPlan,
             architectures: architectures,
-            fileSize: size
+            fileSize: size,
+            targetSDK: IPABundleParsing.targetSDK(from: dictionary),
+            deviceFamilies: IPABundleParsing.deviceFamilies(from: dictionary),
+            isSigned: IPABundleParsing.isSigned(entries: list, appRoot: infoPoint.appRoot)
         )
     }
 

@@ -33,6 +33,12 @@ enum IPASettingsFingerprint {
             hasher.add(key)
         }
 
+        for path in modifications.editedFiles.keys.sorted() {
+            hasher.add("edited")
+            hasher.add(path)
+            hasher.add(modifications.editedFiles[path] ?? Data())
+        }
+
         return String(hasher.value, radix: 16)
     }
 
