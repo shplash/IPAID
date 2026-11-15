@@ -1119,7 +1119,13 @@ struct ContentView: View {
                                 .ipaidOnSubmit {
                                     renameExportedIPA()
                                 }
-                                .frame(minWidth: proxy.size.width, alignment: .leading)
+                                .frame(
+                                    width: max(
+                                        proxy.size.width,
+                                        measuredFileNameWidth(fitting: proxy.size.width)
+                                    ),
+                                    alignment: .leading
+                                )
                         }
                     }
                     .frame(height: 24)
@@ -1188,6 +1194,13 @@ struct ContentView: View {
 
     private var fileSizeSummary: String {
         "Before \(IPAFormatting.fileSize(inputFileSize)) · After \(IPAFormatting.fileSize(outputFileSize))"
+    }
+
+    private func measuredFileNameWidth(fitting available: CGFloat) -> CGFloat {
+        let font = UIFont.preferredFont(forTextStyle: .body)
+        let width = (exportFileName as NSString).size(withAttributes: [.font: font]).width
+
+        return min(max(width + 16, available), 1600)
     }
 
     private func discardExport() {
