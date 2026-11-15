@@ -103,10 +103,6 @@ enum IconRenderer {
         return rendered.pngData()
     }
 
-    static func canvasData(image: UIImage, size: CGFloat = IPAIconFitting.canvasSize) -> Data? {
-        pngData(image: canvasImage(from: image), width: Int(size), height: Int(size))
-    }
-
     static func trimmed(_ image: UIImage) -> UIImage {
         guard let cgImage = image.cgImage else {
             return image
