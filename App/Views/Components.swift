@@ -261,8 +261,8 @@ struct IPAIconThumbnail: View {
                 if let image {
                     Image(uiImage: image)
                         .resizable()
-                        .aspectRatio(contentMode: .fill)
                         .interpolation(.high)
+                        .aspectRatio(contentMode: .fill)
                 } else {
                     ZStack {
                         Color.secondary.opacity(0.12)
