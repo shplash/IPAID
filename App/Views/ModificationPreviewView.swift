@@ -103,7 +103,7 @@ struct ModificationPreviewView: View {
                             .accentColor(.white)
                     }
 
-                    Text(isExporting ? "Exporting…" : "Export")
+                    Text(isExporting ? "Exporting…" : "Confirm")
                         .font(.subheadline.weight(.semibold))
                 }
                 .frame(maxWidth: .infinity)
