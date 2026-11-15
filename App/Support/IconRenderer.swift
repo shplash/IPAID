@@ -2,10 +2,12 @@ import UIKit
 
 enum IconRenderer {
 
+    private static let analysisLimit: CGFloat = 2048
+
     static func makeFiles(image: UIImage, plan: IPAIconPlan) -> IconRenderResult {
         var files: [String: Data] = [:]
         var problems: [String] = []
-        let source = trimmed(image)
+        let source = trimmed(normalized(image, limit: analysisLimit))
 
         for slot in plan.slots {
             guard let data = pngData(
@@ -20,11 +22,36 @@ enum IconRenderer {
             files[slot.path] = data
         }
 
-        if source.size.width < 512 || source.size.height < 512 {
+        if image.size.width < 512 || image.size.height < 512 {
             problems.append("A larger source image (1024×1024 or more) gives sharper results.")
         }
 
         return IconRenderResult(files: files, problems: problems)
+    }
+
+    static func normalized(_ image: UIImage, limit: CGFloat) -> UIImage {
+        let pixels = CGSize(
+            width: image.size.width * image.scale,
+            height: image.size.height * image.scale
+        )
+
+        guard pixels.width > 0, pixels.height > 0 else {
+            return image
+        }
+
+        let factor = min(1, limit / max(pixels.width, pixels.height))
+        let target = CGSize(
+            width: max(1, (pixels.width * factor).rounded()),
+            height: max(1, (pixels.height * factor).rounded())
+        )
+
+        let format = UIGraphicsImageRendererFormat.default()
+        format.opaque = false
+        format.scale = 1
+
+        return UIGraphicsImageRenderer(size: target, format: format).image { _ in
+            image.draw(in: CGRect(origin: .zero, size: target))
+        }
     }
 
     static func pngData(image: UIImage, width: Int, height: Int) -> Data? {
@@ -60,7 +87,7 @@ enum IconRenderer {
     }
 
     static func trimmed(_ image: UIImage) -> UIImage {
-        guard image.imageOrientation == .up, let cgImage = image.cgImage else {
+        guard let cgImage = image.cgImage else {
             return image
         }
 
