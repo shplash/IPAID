@@ -9,8 +9,26 @@ struct ModificationPreviewView: View {
     let onExport: () -> Void
     let onClose: () -> Void
 
+    @State private var showsIconFiles = false
+
     private var hasIconChange: Bool {
         summary.changes.contains { $0.id == "icon" }
+    }
+
+    private var iconFiles: [String] {
+        summary.iconFilePaths
+    }
+
+    private var otherAddedFiles: [String] {
+        summary.addedFiles.filter { !iconFiles.contains($0) }
+    }
+
+    private var otherModifiedFiles: [String] {
+        summary.modifiedFiles.filter { !iconFiles.contains($0) }
+    }
+
+    private var modifiedCount: Int {
+        otherModifiedFiles.count + (iconFiles.isEmpty ? 0 : 1)
     }
 
     private var warnings: [String] {
@@ -25,49 +43,77 @@ struct ModificationPreviewView: View {
     }
 
     var body: some View {
-        IPASheet(title: "Review Changes", onClose: onClose) {
-            if summary.isEmpty {
-                IPAInfoBanner(
-                    message: "No changes to export.",
-                    color: .secondary,
-                    icon: "info.circle"
-                )
-            }
+        IPASheet(title: "Review Changes", centeredTitle: true) {
+            VStack(spacing: 12) {
+                actionRow
 
-            if hasIconChange {
-                iconCard
-            }
+                if summary.isEmpty {
+                    IPAInfoBanner(
+                        message: "No changes to export.",
+                        color: .secondary,
+                        icon: "info.circle"
+                    )
+                }
 
-            if !summary.changes.isEmpty {
-                changesCard
-            }
+                if hasIconChange {
+                    iconCard
+                }
 
-            if !summary.removedFiles.isEmpty ||
-                !summary.addedFiles.isEmpty ||
-                !summary.modifiedFiles.isEmpty {
-                filesCard
-            }
+                if !summary.changes.isEmpty {
+                    changesCard
+                }
 
-            ForEach(warnings, id: \.self) { message in
-                IPAInfoBanner(message: message, color: .orange)
-            }
+                if modifiedCount > 0 || !otherAddedFiles.isEmpty || !summary.removedFiles.isEmpty {
+                    filesCard
+                }
 
-            exportCard
+                ForEach(warnings, id: \.self) { message in
+                    IPAInfoBanner(message: message, color: .orange)
+                }
+            }
+        }
+    }
+
+    private var actionRow: some View {
+        HStack(spacing: 10) {
+            Button(action: onClose) {
+                Text("Cancel")
+                    .font(.subheadline.weight(.semibold))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+            }
+            .ipaidBorderedButton(.red)
+
+            Button(action: onExport) {
+                HStack(spacing: 8) {
+                    if isExporting {
+                        ProgressView()
+                            .accentColor(.white)
+                    }
+
+                    Text(isExporting ? "Exporting…" : "Export")
+                        .font(.subheadline.weight(.semibold))
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+            }
+            .ipaidProminentButton(.green)
+            .disabled(isExporting || summary.isEmpty)
         }
     }
 
     private var iconCard: some View {
-        HStack(spacing: 16) {
-            IPAIconThumbnail(image: originalIcon, caption: "Original", size: 66)
+        HStack(alignment: .top, spacing: 18) {
+            IPAIconThumbnail(image: originalIcon, caption: "Original", size: 64)
 
             Image(systemName: "arrow.right")
-                .font(.footnote.weight(.semibold))
+                .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(.secondary)
+                .frame(height: 64)
 
-            IPAIconThumbnail(image: replacementIcon, caption: "Replacement", size: 66)
-
-            Spacer(minLength: 0)
+            IPAIconThumbnail(image: replacementIcon, caption: "Replacement", size: 64)
         }
+        .frame(maxWidth: .infinity)
         .cardStyle()
     }
 
@@ -117,70 +163,82 @@ struct ModificationPreviewView: View {
         VStack(alignment: .leading, spacing: 0) {
             IPACardHeader(icon: "doc.on.doc", title: "Files")
 
-            IPAFileCountRow(label: "Added", count: summary.addedFiles.count, color: .green)
+            IPAFileCountRow(label: "Added", count: otherAddedFiles.count, color: .green)
             IPAFileCountRow(label: "Removed", count: summary.removedFiles.count, color: .red)
-            IPAFileCountRow(label: "Modified", count: summary.modifiedFiles.count, color: .orange)
+            IPAFileCountRow(label: "Modified", count: modifiedCount, color: .orange)
 
-            if !summary.addedFiles.isEmpty {
-                IPASubtleDivider().padding(.vertical, 6)
-                Text("Added")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundColor(.secondary)
-                IPAPathList(paths: summary.addedFiles, limit: 5)
+            if !otherAddedFiles.isEmpty {
+                listSection(title: "Added")
+                IPAPathList(paths: otherAddedFiles, limit: 5)
                     .padding(.top, 4)
             }
 
             if !summary.removedFiles.isEmpty {
-                IPASubtleDivider().padding(.vertical, 6)
-                Text("Removed")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundColor(.secondary)
+                listSection(title: "Removed")
                 IPAPathList(paths: summary.removedFiles, limit: 5)
                     .padding(.top, 4)
             }
 
-            if !summary.modifiedFiles.isEmpty {
-                IPASubtleDivider().padding(.vertical, 6)
-                Text("Modified")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundColor(.secondary)
-                IPAPathList(paths: summary.modifiedFiles, limit: 5)
-                    .padding(.top, 4)
+            if modifiedCount > 0 {
+                listSection(title: "Modified")
+
+                VStack(alignment: .leading, spacing: 4) {
+                    if !iconFiles.isEmpty {
+                        iconFileRow
+                    }
+
+                    if !otherModifiedFiles.isEmpty {
+                        IPAPathList(paths: otherModifiedFiles, limit: 5)
+                    }
+                }
+                .padding(.top, 2)
             }
         }
         .cardStyle()
     }
 
-    private var exportCard: some View {
-        VStack(spacing: 12) {
-            Button(action: onExport) {
-                HStack {
-                    if isExporting {
-                        ProgressView()
-                            .accentColor(.white)
-                    } else {
-                        Image(systemName: "arrow.down.doc.fill")
-                    }
-
-                    Text(isExporting ? "Exporting…" : "Export IPA")
-                        .font(.headline)
-
-                    Spacer()
+    private var iconFileRow: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.18)) {
+                    showsIconFiles.toggle()
                 }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
+            } label: {
+                HStack(spacing: 8) {
+                    Text("App Icon")
+                        .font(.subheadline)
+                        .foregroundColor(.primary)
+
+                    Spacer(minLength: 8)
+
+                    Text(iconFiles.count == 1 ? "1 file" : "\(iconFiles.count) files")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    Image(systemName: showsIconFiles ? "chevron.up" : "chevron.down")
+                        .font(.caption.bold())
+                        .foregroundColor(.secondary)
+                }
+                .contentShape(Rectangle())
+                .padding(.vertical, 6)
             }
-            .ipaidProminentButton()
-            .disabled(isExporting || summary.isEmpty)
+            .buttonStyle(.plain)
 
-            Button("Cancel", action: onClose)
-                .font(.subheadline.weight(.semibold))
-                .foregroundColor(.secondary)
+            if showsIconFiles {
+                IPAPathList(paths: iconFiles, limit: iconFiles.count)
+                    .padding(.bottom, 6)
+            }
+        }
+    }
 
-            Text("The original IPA is not modified.")
-                .font(.caption)
+    private func listSection(title: String) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            IPASubtleDivider()
+                .padding(.vertical, 6)
+
+            Text(title)
+                .font(.footnote.weight(.semibold))
                 .foregroundColor(.secondary)
         }
-        .cardStyle()
     }
 }

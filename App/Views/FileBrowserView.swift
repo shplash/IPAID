@@ -18,12 +18,15 @@ struct FileBrowserView: View {
 
                 ScrollView {
                     VStack(spacing: 16) {
-                        if let errorMessage {
-                            IPAInfoBanner(message: errorMessage, color: .red)
-                        }
-
-                        if let error = model.error {
-                            IPAInfoBanner(message: error, color: .red)
+                        if let message = errorMessage ?? model.error {
+                            IPAInfoBanner(
+                                message: message,
+                                color: .red,
+                                onDismiss: {
+                                    errorMessage = nil
+                                    model.clearError()
+                                }
+                            )
                         }
 
                         if model.items.isEmpty {
@@ -244,6 +247,10 @@ final class FileBrowserModel: ObservableObject {
         guard item.isDirectory else { return }
         path = item.path
         refresh()
+    }
+
+    func clearError() {
+        error = nil
     }
 
     func goBack() {

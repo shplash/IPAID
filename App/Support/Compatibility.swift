@@ -2,20 +2,20 @@ import SwiftUI
 
 extension View {
     @ViewBuilder
-    func ipaidProminentButton() -> some View {
+    func ipaidProminentButton(_ tint: Color = .blue) -> some View {
         if #available(iOS 15.0, *) {
-            self.buttonStyle(.borderedProminent)
+            self.buttonStyle(.borderedProminent).tint(tint)
         } else {
-            self.buttonStyle(IPAIDProminentButtonStyle())
+            self.buttonStyle(IPAIDProminentButtonStyle(tint: tint))
         }
     }
 
     @ViewBuilder
-    func ipaidBorderedButton() -> some View {
+    func ipaidBorderedButton(_ tint: Color = .blue) -> some View {
         if #available(iOS 15.0, *) {
-            self.buttonStyle(.bordered)
+            self.buttonStyle(.bordered).tint(tint)
         } else {
-            self.buttonStyle(IPAIDBorderedButtonStyle())
+            self.buttonStyle(IPAIDBorderedButtonStyle(tint: tint))
         }
     }
 
@@ -48,6 +48,8 @@ extension View {
 }
 
 struct IPAIDProminentButtonStyle: ButtonStyle {
+    var tint: Color = .blue
+
     @Environment(\.isEnabled) private var isEnabled
 
     func makeBody(configuration: Configuration) -> some View {
@@ -55,23 +57,25 @@ struct IPAIDProminentButtonStyle: ButtonStyle {
             .foregroundColor(.white)
             .background(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(Color.blue.opacity(isEnabled ? (configuration.isPressed ? 0.78 : 1) : 0.35))
+                    .fill(tint.opacity(isEnabled ? (configuration.isPressed ? 0.78 : 1) : 0.35))
             )
             .contentShape(Rectangle())
     }
 }
 
 struct IPAIDBorderedButtonStyle: ButtonStyle {
+    var tint: Color = .blue
+
     @Environment(\.isEnabled) private var isEnabled
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .foregroundColor(isEnabled ? .blue : .secondary)
+            .foregroundColor(isEnabled ? tint : .secondary)
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
             .background(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(Color.blue.opacity(configuration.isPressed ? 0.16 : 0.08))
+                    .fill(tint.opacity(configuration.isPressed ? 0.16 : 0.08))
             )
             .contentShape(Rectangle())
     }

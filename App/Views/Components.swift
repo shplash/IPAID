@@ -13,16 +13,19 @@ extension View {
 
 struct IPASheet<Content: View>: View {
     private let title: String
-    private let onClose: () -> Void
+    private let onClose: (() -> Void)?
+    private let centeredTitle: Bool
     private let content: Content
 
     init(
         title: String,
-        onClose: @escaping () -> Void,
+        onClose: (() -> Void)? = nil,
+        centeredTitle: Bool = false,
         @ViewBuilder content: () -> Content
     ) {
         self.title = title
         self.onClose = onClose
+        self.centeredTitle = centeredTitle
         self.content = content()
     }
 
@@ -31,18 +34,7 @@ struct IPASheet<Content: View>: View {
             Color(UIColor.systemGroupedBackground).ignoresSafeArea()
 
             VStack(spacing: 0) {
-                HStack {
-                    Text(title)
-                        .font(.title2.weight(.bold))
-
-                    Spacer()
-
-                    Button("Done", action: onClose)
-                        .font(.body.weight(.semibold))
-                }
-                .padding(.horizontal, 16)
-                .padding(.top, 18)
-                .padding(.bottom, 12)
+                header
 
                 ScrollView {
                     VStack(spacing: 16) {
@@ -55,18 +47,69 @@ struct IPASheet<Content: View>: View {
             }
         }
     }
+
+    private var header: some View {
+        HStack {
+            if centeredTitle {
+                Spacer(minLength: 0)
+
+                Text(title)
+                    .font(.title2.weight(.bold))
+
+                Spacer(minLength: 0)
+            } else {
+                Text(title)
+                    .font(.title2.weight(.bold))
+
+                Spacer()
+
+                if let onClose {
+                    Button("Done", action: onClose)
+                        .font(.body.weight(.semibold))
+                }
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 18)
+        .padding(.bottom, 12)
+    }
 }
 
 struct IPASectionHeader: View {
     let title: String
+    var isExpanded: Bool? = nil
+    var action: (() -> Void)? = nil
 
     var body: some View {
-        Text(title.uppercased())
-            .font(.footnote.weight(.semibold))
-            .foregroundColor(.secondary)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 4)
-            .padding(.top, 8)
+        Group {
+            if let action {
+                Button(action: action) {
+                    label
+                }
+                .buttonStyle(.plain)
+            } else {
+                label
+            }
+        }
+    }
+
+    private var label: some View {
+        HStack(spacing: 6) {
+            Text(title.uppercased())
+                .font(.footnote.weight(.semibold))
+                .foregroundColor(.secondary)
+
+            Spacer(minLength: 0)
+
+            if let isExpanded {
+                Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundColor(.secondary)
+            }
+        }
+        .contentShape(Rectangle())
+        .padding(.horizontal, 4)
+        .padding(.top, 8)
     }
 }
 
@@ -209,7 +252,7 @@ struct IPASubtleDivider: View {
 
 struct IPAIconThumbnail: View {
     let image: UIImage?
-    let caption: String
+    var caption: String? = nil
     var size: CGFloat = 64
 
     var body: some View {
@@ -218,6 +261,7 @@ struct IPAIconThumbnail: View {
                 if let image {
                     Image(uiImage: image)
                         .resizable()
+                        .aspectRatio(contentMode: .fill)
                         .interpolation(.high)
                 } else {
                     ZStack {
@@ -229,15 +273,18 @@ struct IPAIconThumbnail: View {
                 }
             }
             .frame(width: size, height: size)
+            .clipped()
             .clipShape(RoundedRectangle(cornerRadius: size * 0.225, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: size * 0.225, style: .continuous)
                     .stroke(Color.primary.opacity(0.08), lineWidth: 1)
             )
 
-            Text(caption)
-                .font(.caption)
-                .foregroundColor(.secondary)
+            if let caption, !caption.isEmpty {
+                Text(caption)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
         }
     }
 }
@@ -297,6 +344,7 @@ struct IPALoadingRow: View {
 struct IPAToolRow: View {
     let title: String
     let icon: String
+    var detail: String? = nil
     let action: () -> Void
 
     var body: some View {
@@ -311,7 +359,15 @@ struct IPAToolRow: View {
                     .font(.body)
                     .foregroundColor(.primary)
 
-                Spacer()
+                Spacer(minLength: 8)
+
+                if let detail, !detail.isEmpty {
+                    Text(detail)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
 
                 Image(systemName: "chevron.right")
                     .font(.system(size: 13, weight: .bold))

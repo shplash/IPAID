@@ -8,6 +8,7 @@ struct ContentView: View {
     @State private var activeSheet: ActiveSheet?
     @State private var showInfo = false
     @AppStorage("ipaidAppearance") private var appearanceMode = "system"
+    @AppStorage("ipaidToolsExpanded") private var toolsExpanded = true
 
     @State private var ipaURL: URL?
     @State private var originalFileName = ""
@@ -21,7 +22,6 @@ struct ContentView: View {
 
     @State private var originalURLScheme = ""
     @State private var newURLScheme = ""
-    @State private var urlSchemeExpanded = false
 
     @State private var duplicateMode = false
 
@@ -58,7 +58,6 @@ struct ContentView: View {
 
     @State private var newVersion = ""
     @State private var newBuild = ""
-    @State private var versionExpanded = false
     @State private var versionReferences: [IPAVersionReference] = []
 
     @State private var originalIconData: Data?
@@ -66,6 +65,7 @@ struct ContentView: View {
     @State private var replacementIconName = ""
     @State private var replacementIconFiles: [String: Data] = [:]
     @State private var iconHint: String?
+    @State private var iconErrorMessage: String?
     @State private var iconExpanded = false
 
     @State private var plistOverrides = InfoPlistOverrides()
@@ -120,14 +120,6 @@ struct ContentView: View {
 
     private var cleanBuild: String {
         newBuild.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    private var versionChanged: Bool {
-        cleanVersion != appVersion.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    private var buildChanged: Bool {
-        cleanBuild != appBuild.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private var originalIconImage: UIImage? {
@@ -321,6 +313,29 @@ struct ContentView: View {
                         )
                     }
 
+                case .version:
+                    if info != nil {
+                        VersionEditorView(
+                            marketingVersion: $newVersion,
+                            buildNumber: $newBuild,
+                            originalVersion: appVersion,
+                            originalBuild: appBuild,
+                            references: versionReferences,
+                            onChange: clearStaleExportState,
+                            onClose: { activeSheet = nil }
+                        )
+                    }
+
+                case .urlScheme:
+                    if info != nil {
+                        URLEditorView(
+                            scheme: $newURLScheme,
+                            originalScheme: originalURLScheme,
+                            onChange: clearStaleExportState,
+                            onClose: { activeSheet = nil }
+                        )
+                    }
+
                 case .browser:
                     if let ipaURL {
                         FileBrowserView(
@@ -494,43 +509,57 @@ struct ContentView: View {
     }
 
     private var headerSection: some View {
-        HStack(alignment: .firstTextBaseline) {
-            VStack(alignment: .leading, spacing: 3) {
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 6) {
                 Text("IPAID")
                     .font(.system(size: 34, weight: .bold, design: .rounded))
-
-                Text("IPA Bundle ID Editor")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-            }
-
-            Spacer()
-
-            HStack(spacing: 8) {
-                Button {
-                    withAnimation(.easeInOut(duration: 0.28)) {
-                        showInfo.toggle()
-                    }
-                } label: {
-                    Image(systemName: "info.circle")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.secondary)
-                        .frame(width: 30, height: 30)
-                        .background(Color.secondary.opacity(0.12))
-                        .clipShape(Circle())
-                }
-                .buttonStyle(.plain)
 
                 Text("v\(currentAppVersion)")
                     .font(.caption.weight(.bold))
                     .foregroundColor(.secondary)
                     .padding(.horizontal, 9)
-                    .padding(.vertical, 5)
+                    .padding(.vertical, 4)
                     .background(Color.secondary.opacity(0.12))
                     .clipShape(Capsule())
             }
+
+            Spacer(minLength: 0)
+
+            HStack(spacing: 8) {
+                headerButton(icon: "slider.horizontal.3", action: openPresets)
+                    .disabled(info == nil)
+                    .opacity(info == nil ? 0.45 : 1)
+
+                headerButton(icon: "gearshape.fill", action: toggleSettings)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func headerButton(icon: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundColor(.secondary)
+                .frame(width: 38, height: 38)
+                .background(Color.secondary.opacity(0.12))
+                .clipShape(Circle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func openPresets() {
+        guard info != nil else {
+            return
+        }
+
+        activeSheet = .presets
+    }
+
+    private func toggleSettings() {
+        withAnimation(.easeInOut(duration: 0.28)) {
+            showInfo.toggle()
+        }
     }
 
     private var emptyStateSection: some View {
@@ -578,17 +607,29 @@ struct ContentView: View {
 
             extensionCard
 
-            IPASectionHeader(title: "Advanced")
-
-            versionCard
-
-            urlSchemeCard
-
-            IPASectionHeader(title: "Tools")
-
-            toolsCard
+            toolsSection
 
             exportCard
+        }
+    }
+
+    private var toolsSection: some View {
+        VStack(spacing: 14) {
+            IPASectionHeader(
+                title: "Tools",
+                isExpanded: toolsExpanded,
+                action: toggleTools
+            )
+
+            if toolsExpanded {
+                toolsCard
+            }
+        }
+    }
+
+    private func toggleTools() {
+        withAnimation(.easeInOut(duration: 0.2)) {
+            toolsExpanded = !toolsExpanded
         }
     }
 
@@ -596,24 +637,23 @@ struct ContentView: View {
         VStack(alignment: .leading, spacing: 12) {
             IPACardHeader(icon: "app.badge", title: "App Information")
 
-            HStack(alignment: .firstTextBaseline, spacing: 12) {
-                Text(originalDisplayName.isEmpty ? "Unnamed App" : originalDisplayName)
+            HStack(alignment: .center, spacing: 12) {
+                Text(displayName.isEmpty ? "Unnamed App" : displayName)
                     .font(.headline)
                     .lineLimit(1)
                     .truncationMode(.middle)
 
-                Spacer(minLength: 0)
+                Spacer(minLength: 8)
 
-                VStack(alignment: .trailing, spacing: 3) {
-                    if !appVersion.isEmpty {
-                        Text("v\(appVersion)")
-                            .font(.subheadline.weight(.semibold))
-                    }
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(cleanBuild.isEmpty ? "No build number" : "Build \(cleanBuild)")
+                        .font(.subheadline.weight(.semibold))
 
-                    Text(appBuild.isEmpty ? "No build number" : "Build \(appBuild)")
+                    Text(cleanVersion.isEmpty ? "No version" : "v\(cleanVersion)")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
+                .fixedSize(horizontal: true, vertical: false)
             }
         }
         .cardStyle()
@@ -634,18 +674,6 @@ struct ContentView: View {
                     .font(.system(.body, design: .monospaced))
                     .lineLimit(1)
 
-                    if !newBundleID.isEmpty {
-                        Button {
-                            newBundleID = ""
-                            duplicateMode = false
-                            clearStaleExportState()
-                        } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .foregroundColor(.secondary)
-                        }
-                        .buttonStyle(.plain)
-                    }
-
                     Button {
                         UIPasteboard.general.string = cleanNewBundleID.isEmpty
                             ? currentBundleID
@@ -662,12 +690,11 @@ struct ContentView: View {
                     .buttonStyle(.plain)
 
                     Button {
-                        if let paste = UIPasteboard.general.string {
-                            newBundleID = paste
-                            clearStaleExportState()
-                        }
+                        newBundleID = ""
+                        duplicateMode = false
+                        clearStaleExportState()
                     } label: {
-                        Image(systemName: "doc.on.clipboard")
+                        Image(systemName: "xmark.circle.fill")
                             .foregroundColor(.secondary)
                     }
                     .buttonStyle(.plain)
@@ -742,9 +769,7 @@ struct ContentView: View {
         Group {
             if !foundExtensions.isEmpty {
                 IPAExpandableCard(
-                    icon: selectedExtensionsToRemove.isEmpty
-                        ? "puzzlepiece.extension"
-                        : "checkmark.circle.fill",
+                    icon: "puzzlepiece.extension",
                     title: "Extensions",
                     subtitle: extensionsSubtitle,
                     isExpanded: extensionsBinding
@@ -826,138 +851,6 @@ struct ContentView: View {
         }
     }
 
-    private var urlSchemeCard: some View {
-        IPAExpandableCard(
-            icon: "link",
-            title: "URL Scheme",
-            subtitle: cleanURLScheme.isEmpty ? "None" : cleanURLScheme,
-            isExpanded: $urlSchemeExpanded
-        ) {
-            IPAFieldBox {
-                HStack(spacing: 8) {
-                    TextField("myapp", text: $newURLScheme)
-                        .autocapitalization(.none)
-                        .disableAutocorrection(true)
-                        .font(.system(.body, design: .monospaced))
-                        .lineLimit(1)
-
-                    if !newURLScheme.isEmpty {
-                        Button {
-                            newURLScheme = ""
-                            clearStaleExportState()
-                        } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .foregroundColor(.secondary)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-            }
-            .onChange(of: newURLScheme) { _ in
-                clearStaleExportState()
-            }
-        }
-    }
-
-    private var versionCard: some View {
-        IPAExpandableCard(
-            icon: "number",
-            title: "Version",
-            subtitle: versionSubtitle,
-            isExpanded: $versionExpanded
-        ) {
-            versionField(
-                title: "Marketing Version",
-                placeholder: "1.0",
-                text: $newVersion,
-                original: appVersion,
-                error: versionChanged ? MetadataValidation.marketingVersion(cleanVersion) : ""
-            )
-
-            versionField(
-                title: "Build Number",
-                placeholder: "1",
-                text: $newBuild,
-                original: appBuild,
-                error: buildChanged ? MetadataValidation.buildNumber(cleanBuild) : ""
-            )
-
-            if versionChanged, !versionReferences.isEmpty {
-                Text(versionReferenceText)
-                    .font(.caption)
-                    .foregroundColor(.orange)
-                    .fixedSize(horizontal: false, vertical: true)
-            } else {
-                Text("Only Info.plist is changed.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-        }
-    }
-
-    private var versionSubtitle: String {
-        let version = cleanVersion.isEmpty
-            ? (appVersion.isEmpty ? "Unknown" : appVersion)
-            : cleanVersion
-        let build = cleanBuild.isEmpty
-            ? (appBuild.isEmpty ? "Unknown" : appBuild)
-            : cleanBuild
-
-        return "\(version) (\(build))"
-    }
-
-    private var versionReferenceText: String {
-        let name = versionReferences[0].path
-            .split(separator: "/")
-            .last
-            .map(String.init) ?? versionReferences[0].path
-
-        if versionReferences.count == 1 {
-            return "The old version also appears in \(name). Only Info.plist is changed."
-        }
-
-        return "The old version also appears in \(versionReferences.count) bundled files, such as \(name). Only Info.plist is changed."
-    }
-
-    private func versionField(
-        title: String,
-        placeholder: String,
-        text: Binding<String>,
-        original: String,
-        error: String
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text(title)
-                    .font(.subheadline.weight(.semibold))
-
-                Spacer()
-
-                if !original.isEmpty {
-                    Text("Original \(original)")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-            }
-
-            IPAFieldBox {
-                TextField(placeholder, text: text)
-                    .font(.system(.body, design: .monospaced))
-                    .autocapitalization(.none)
-                    .disableAutocorrection(true)
-            }
-            .onChange(of: text.wrappedValue) { _ in
-                clearStaleExportState()
-            }
-
-            if !error.isEmpty {
-                Text(error)
-                    .font(.caption)
-                    .foregroundColor(.red)
-            }
-        }
-    }
-
     private var iconCard: some View {
         IPAExpandableCard(
             icon: "photo",
@@ -1007,19 +900,20 @@ struct ContentView: View {
                         .buttonStyle(.plain)
                 }
 
+                if let iconErrorMessage {
+                    IPAInfoBanner(
+                        message: iconErrorMessage,
+                        color: .red,
+                        onDismiss: { self.iconErrorMessage = nil }
+                    )
+                }
+
                 if let iconHint {
                     Text(iconHint)
                         .font(.caption)
                         .foregroundColor(.orange)
                         .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
-                }
-
-                if !iconSlotText.isEmpty {
-                    Text(iconSlotText)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
                 }
             }
             .frame(maxWidth: .infinity)
@@ -1039,34 +933,26 @@ struct ContentView: View {
         replacementIconName = ""
         replacementIconFiles = [:]
         iconHint = nil
+        iconErrorMessage = nil
         clearStaleExportState()
-    }
-
-    private var iconSlotText: String {
-        guard let info else {
-            return ""
-        }
-
-        let count = info.iconPlan.slots.count
-
-        if count == 0 {
-            return "No replaceable icon files found."
-        }
-
-        return replacementImage == nil
-            ? "\(count) icon sizes available"
-            : "\(replacementIconFiles.count) icons ready"
     }
 
     private var toolsCard: some View {
         VStack(alignment: .leading, spacing: 0) {
-            IPACardHeader(icon: "wrench.and.screwdriver", title: "Tools")
-
-            IPASubtleDivider()
-                .padding(.top, 12)
-
             IPAToolRow(title: "IPA Info", icon: "info.circle") {
                 activeSheet = .inspector
+            }
+
+            IPASubtleDivider()
+
+            IPAToolRow(title: "Version", icon: "number") {
+                activeSheet = .version
+            }
+
+            IPASubtleDivider()
+
+            IPAToolRow(title: "URL Scheme", icon: "link", detail: urlSchemeDetail) {
+                activeSheet = .urlScheme
             }
 
             IPASubtleDivider()
@@ -1086,14 +972,12 @@ struct ContentView: View {
             IPAToolRow(title: "Compare IPAs", icon: "arrow.left.arrow.right") {
                 activeSheet = .comparison
             }
-
-            IPASubtleDivider()
-
-            IPAToolRow(title: "Export Presets", icon: "slider.horizontal.3") {
-                activeSheet = .presets
-            }
         }
         .cardStyle()
+    }
+
+    private var urlSchemeDetail: String {
+        cleanURLScheme.isEmpty ? "None" : cleanURLScheme
     }
 
     private var validationIcon: String {
@@ -1264,12 +1148,17 @@ struct ContentView: View {
                     clearStaleExportState()
                 }
             } label: {
-                HStack {
+                HStack(spacing: 9) {
                     Image(
                         systemName:
                             selectedExtensionsToRemove.isEmpty
                             ? "checkmark.circle.fill"
                             : "circle"
+                    )
+                    .foregroundColor(
+                        selectedExtensionsToRemove.isEmpty
+                        ? Color.blue
+                        : Color.secondary
                     )
 
                     Text(
@@ -1278,9 +1167,12 @@ struct ContentView: View {
                         : "Enable All"
                     )
                     .font(.subheadline.weight(.semibold))
+                    .foregroundColor(.primary)
 
                     Spacer()
                 }
+                .font(.subheadline)
+                .padding(.horizontal, 8)
                 .padding(.vertical, 7)
             }
             .buttonStyle(.plain)
@@ -1349,7 +1241,10 @@ struct ContentView: View {
 
             if isExpanded {
                 Text(
-                    IPAExtensionInfo.tip(forName: name)
+                    IPAExtensionInfo.tip(
+                        forName: name,
+                        pointIdentifier: extensionPointIdentifier(for: path)
+                    )
                 )
                 .font(.caption)
                 .foregroundColor(.secondary)
@@ -1369,6 +1264,10 @@ struct ContentView: View {
             : Color.secondary.opacity(0.06)
         )
         .clipShape(RoundedRectangle(cornerRadius: 9))
+    }
+
+    private func extensionPointIdentifier(for root: String) -> String {
+        info?.extensions.first { $0.root == root }?.extensionPointIdentifier ?? ""
     }
 
     private func toggleExtensionInfo(_ path: String) {
@@ -1433,11 +1332,9 @@ struct ContentView: View {
 
         originalURLScheme = ""
         newURLScheme = ""
-        urlSchemeExpanded = false
 
         newVersion = ""
         newBuild = ""
-        versionExpanded = false
         versionReferences = []
 
         originalIconData = nil
@@ -1445,6 +1342,7 @@ struct ContentView: View {
         replacementIconName = ""
         replacementIconFiles = [:]
         iconHint = nil
+        iconErrorMessage = nil
         iconExpanded = false
 
         plistOverrides = InfoPlistOverrides()
@@ -1527,13 +1425,11 @@ struct ContentView: View {
 
                     originalURLScheme = bundle.urlScheme
                     newURLScheme = bundle.urlScheme
-                    urlSchemeExpanded = false
 
                     appVersion = bundle.marketingVersion
                     appBuild = bundle.buildNumber
                     newVersion = bundle.marketingVersion
                     newBuild = bundle.buildNumber
-                    versionExpanded = false
                     versionReferences = references
 
                     originalIconData = iconData
@@ -1541,6 +1437,7 @@ struct ContentView: View {
                     replacementIconName = ""
                     replacementIconFiles = [:]
                     iconHint = nil
+                    iconErrorMessage = nil
                     iconExpanded = false
 
                     foundExtensions = bundle.extensions.map(\.root)
@@ -1589,24 +1486,25 @@ struct ContentView: View {
         }
 
         guard !plan.slots.isEmpty else {
-            errorMessage = "No replaceable icon files were found in this IPA."
+            iconErrorMessage = "This IPA has no replaceable icon files."
             return
         }
 
         DispatchQueue.global(qos: .userInitiated).async {
-            let result = IconRenderer.makeFiles(image: image, plan: plan)
+            let preview = IconRenderer.trimmed(image)
+            let result = IconRenderer.makeFiles(image: preview, plan: plan)
 
             DispatchQueue.main.async {
                 guard !result.files.isEmpty else {
-                    errorMessage = result.problems.first ?? "Could not prepare the icon."
+                    iconErrorMessage = result.problems.first ?? "Could not prepare the icon."
                     return
                 }
 
-                replacementImage = image
+                replacementImage = preview
                 replacementIconName = name
                 replacementIconFiles = result.files
                 iconHint = result.problems.first
-                errorMessage = nil
+                iconErrorMessage = nil
                 clearStaleExportState()
             }
         }
@@ -1621,27 +1519,26 @@ struct ContentView: View {
         }
 
         guard let data = try? Data(contentsOf: url), let image = UIImage(data: data) else {
-            errorMessage = "The selected image could not be read."
+            iconErrorMessage = "The selected image could not be read."
             return
         }
 
         applyIcon(image, name: url.lastPathComponent)
     }
 
-    private func applyPreset(_ preset: ExportPreset) {
-        guard let info else {
+    private func applyPreset(_ plan: ExportPresetPlan) {
+        guard info != nil else {
             return
         }
 
-        var modifications = currentModifications
-        preset.apply(to: &modifications, availableExtensions: info.extensions)
+        let updated = plan.modifications
 
-        newBundleID = modifications.bundleIdentifier
-        displayName = modifications.displayName
-        newURLScheme = modifications.urlScheme
-        newVersion = modifications.marketingVersion
-        newBuild = modifications.buildNumber
-        selectedExtensionsToRemove = modifications.removedExtensions
+        newBundleID = updated.bundleIdentifier
+        displayName = updated.displayName
+        newURLScheme = updated.urlScheme
+        newVersion = updated.marketingVersion
+        newBuild = updated.buildNumber
+        selectedExtensionsToRemove = updated.removedExtensions
         duplicateMode = false
 
         clearStaleExportState()
@@ -1827,6 +1724,8 @@ private enum ActiveSheet: String, Identifiable {
     case picker
     case share
     case inspector
+    case version
+    case urlScheme
     case browser
     case plistEditor
     case comparison

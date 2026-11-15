@@ -19,7 +19,7 @@ struct IPAInfoSheet: View {
 
     private var overviewCard: some View {
         HStack(spacing: 14) {
-            IPAIconThumbnail(image: iconImage, caption: "Icon", size: 62)
+            IPAIconThumbnail(image: iconImage, size: 62)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(info.displayName.isEmpty ? "Unnamed App" : info.displayName)
