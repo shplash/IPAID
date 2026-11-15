@@ -53,12 +53,6 @@ If you found IPAID useful, a GitHub star is always appreciated.
 - Fully iPhone-native workflow
 - Works before signing
 
-## Example
-
-<p align="center">
-  <img src="assets/example5.PNG" width="360" alt="IPAID editing example">
-</p>
-
 ## Why
 
 Most iOS signing apps tie bundle identifier editing to signing workflows or certificate setup.
