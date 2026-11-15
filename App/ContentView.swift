@@ -248,7 +248,7 @@ struct ContentView: View {
         }
 
         if let problem = currentModifications.problems(comparedTo: info).first {
-            return problem
+            return problem == bundleIDProblem ? "" : problem
         }
 
         guard hasPendingChanges else {
@@ -887,11 +887,11 @@ struct ContentView: View {
                     .font(.caption)
                     .foregroundColor(.orange)
                     .fixedSize(horizontal: false, vertical: true)
+            } else {
+                Text("Only Info.plist is changed.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
             }
-
-            Text("Metadata only. This does not change the app's actual version.")
-                .font(.caption)
-                .foregroundColor(.secondary)
         }
     }
 
