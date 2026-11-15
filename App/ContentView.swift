@@ -8,12 +8,14 @@ struct ContentView: View {
     @State private var showInfo = false
     @AppStorage("ipaidAppearance") private var appearanceMode = "system"
     @AppStorage("ipaidToolsExpanded") private var toolsExpanded = true
+    @AppStorage("ipaidExportSuffix") private var exportSuffix = IPAFormatting.defaultExportSuffix
 
     @State private var ipaURL: URL?
     @State private var originalFileName = ""
 
     @State private var currentBundleID = ""
     @State private var newBundleID = ""
+    @State private var bundleIDExpanded = true
 
     @State private var displayName = ""
     @State private var displayNameExpanded = false
@@ -31,7 +33,6 @@ struct ContentView: View {
     @State private var infoTapLocked = false
     @State private var infoAutoCloseToken = UUID()
 
-    @State private var copiedFilename = false
     @State private var copiedBundleID = false
 
     @State private var exportSummary = ""
@@ -422,12 +423,10 @@ struct ContentView: View {
 
                 if currentBundleID.isEmpty {
                     emptyStateSection
+                } else if exportURL != nil {
+                    outputSection
                 } else {
                     editorSection
-                }
-
-                if exportURL != nil {
-                    outputSection
                 }
 
                 Spacer(minLength: 30)
@@ -441,7 +440,11 @@ struct ContentView: View {
     private var infoContent: some View {
         ScrollView {
             VStack(spacing: 0) {
-                InfoView(currentVersion: currentAppVersion, appearanceMode: $appearanceMode)
+                InfoView(
+                    currentVersion: currentAppVersion,
+                    appearanceMode: $appearanceMode,
+                    exportSuffix: $exportSuffix
+                )
                 Spacer(minLength: 34)
             }
             .padding(.horizontal, 16)
@@ -496,7 +499,7 @@ struct ContentView: View {
 
     private var headerSection: some View {
         HStack(alignment: .center, spacing: 12) {
-            VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .bottom, spacing: 8) {
                 Text("IPAID")
                     .font(.system(size: 34, weight: .bold, design: .rounded))
 
@@ -507,6 +510,7 @@ struct ContentView: View {
                     .padding(.vertical, 4)
                     .background(Color.secondary.opacity(0.12))
                     .clipShape(Capsule())
+                    .padding(.bottom, 6)
             }
 
             Spacer(minLength: 0)
@@ -598,23 +602,9 @@ struct ContentView: View {
 
             extensionCard
 
-            toolsSection
+            toolsCard
 
             exportCard
-        }
-    }
-
-    private var toolsSection: some View {
-        VStack(spacing: 14) {
-            IPASectionHeader(
-                title: "Tools",
-                isExpanded: toolsExpanded,
-                action: toggleTools
-            )
-
-            if toolsExpanded {
-                toolsCard
-            }
         }
     }
 
@@ -637,10 +627,11 @@ struct ContentView: View {
                 Spacer(minLength: 8)
 
                 VStack(alignment: .trailing, spacing: 2) {
-                    Text(cleanBuild.isEmpty ? "No build number" : "Build \(cleanBuild)")
-                        .font(.subheadline.weight(.semibold))
-
                     Text(cleanVersion.isEmpty ? "No version" : "v\(cleanVersion)")
+                        .font(.title3.weight(.semibold))
+                        .foregroundColor(.primary)
+
+                    Text(cleanBuild.isEmpty ? "No build number" : "Build \(cleanBuild)")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -651,61 +642,74 @@ struct ContentView: View {
     }
 
     private var bundleIDCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            IPACardHeader(icon: "shippingbox.fill", title: "Bundle ID")
+        IPAExpandableCard(
+            icon: "shippingbox.fill",
+            title: "Bundle ID",
+            trailingText: cleanNewBundleID.isEmpty ? "Original \(currentBundleID)" : nil,
+            isExpanded: $bundleIDExpanded
+        ) {
+            VStack(alignment: .leading, spacing: 12) {
+                IPAFieldBox {
+                    HStack(spacing: 10) {
+                        TextField(
+                            "com.example.app",
+                            text: $newBundleID
+                        )
+                        .autocapitalization(.none)
+                        .disableAutocorrection(true)
+                        .font(.system(.body, design: .monospaced))
+                        .lineLimit(1)
 
-            IPAFieldBox {
-                HStack(spacing: 10) {
-                    TextField(
-                        "com.example.app",
-                        text: $newBundleID
-                    )
-                    .autocapitalization(.none)
-                    .disableAutocorrection(true)
-                    .font(.system(.body, design: .monospaced))
-                    .lineLimit(1)
+                        Button {
+                            if cleanNewBundleID.isEmpty {
+                                if let paste = UIPasteboard.general.string {
+                                    newBundleID = paste
+                                    duplicateMode = false
+                                    clearStaleExportState()
+                                }
+                            } else {
+                                UIPasteboard.general.string = cleanNewBundleID
+                                copiedBundleID = true
 
-                    Button {
-                        UIPasteboard.general.string = cleanNewBundleID.isEmpty
-                            ? currentBundleID
-                            : cleanNewBundleID
-                        copiedBundleID = true
-
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
-                            copiedBundleID = false
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                                    copiedBundleID = false
+                                }
+                            }
+                        } label: {
+                            Image(systemName: fieldButtonIcon)
+                                .foregroundColor(.secondary)
                         }
-                    } label: {
-                        Image(systemName: copiedBundleID ? "checkmark" : "doc.on.doc")
-                            .foregroundColor(.secondary)
-                    }
-                    .buttonStyle(.plain)
+                        .buttonStyle(.plain)
 
-                    Button {
-                        newBundleID = ""
+                        if !newBundleID.isEmpty {
+                            Button {
+                                newBundleID = ""
+                                duplicateMode = false
+                                clearStaleExportState()
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundColor(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+                .onChange(of: newBundleID) { value in
+                    if duplicateMode &&
+                        value != currentBundleID + ".ipaid" {
                         duplicateMode = false
-                        clearStaleExportState()
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundColor(.secondary)
                     }
-                    .buttonStyle(.plain)
-                }
-            }
-            .onChange(of: newBundleID) { value in
-                if duplicateMode &&
-                    value != currentBundleID + ".ipaid" {
-                    duplicateMode = false
+
+                    clearStaleExportState()
                 }
 
-                clearStaleExportState()
-            }
-
-            if bundleIDChanged {
-                Text("Original \(currentBundleID)")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
+                if bundleIDChanged, !cleanNewBundleID.isEmpty {
+                    Text("Original \(currentBundleID)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
 
                 if !bundleIDProblem.isEmpty {
                     Text(bundleIDProblem)
@@ -713,47 +717,54 @@ struct ContentView: View {
                         .foregroundColor(.red)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-            }
 
-            Button {
-                duplicateMode.toggle()
+                Button {
+                    duplicateMode.toggle()
 
-                if duplicateMode {
-                    newBundleID = currentBundleID + ".ipaid"
-                } else {
-                    newBundleID = currentBundleID
-                }
-
-                clearStaleExportState()
-            } label: {
-                HStack(spacing: 9) {
-                    Image(
-                        systemName:
-                            duplicateMode
-                            ? "checkmark.circle.fill"
-                            : "circle"
-                    )
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Clone App")
-                            .font(.subheadline.weight(.semibold))
-
-                        Text("Use a different Bundle ID")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                    if duplicateMode {
+                        newBundleID = currentBundleID + ".ipaid"
+                    } else {
+                        newBundleID = currentBundleID
                     }
 
-                    Spacer()
+                    clearStaleExportState()
+                } label: {
+                    HStack(spacing: 9) {
+                        Image(
+                            systemName:
+                                duplicateMode
+                                ? "checkmark.circle.fill"
+                                : "circle"
+                        )
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Clone App")
+                                .font(.subheadline.weight(.semibold))
+
+                            Text("Use a different Bundle ID")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+
+                        Spacer()
+                    }
+                    .foregroundColor(
+                        duplicateMode
+                        ? Color.blue
+                        : Color.primary
+                    )
                 }
-                .foregroundColor(
-                    duplicateMode
-                    ? Color.blue
-                    : Color.primary
-                )
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
         }
-        .cardStyle()
+    }
+
+    private var fieldButtonIcon: String {
+        if cleanNewBundleID.isEmpty {
+            return "doc.on.clipboard"
+        }
+
+        return copiedBundleID ? "checkmark" : "doc.on.doc"
     }
 
     private var extensionCard: some View {
@@ -819,17 +830,6 @@ struct ContentView: View {
                         }
                         .buttonStyle(.plain)
                     }
-
-                    Button {
-                        if let paste = UIPasteboard.general.string {
-                            displayName = paste
-                            clearStaleExportState()
-                        }
-                    } label: {
-                        Image(systemName: "doc.on.clipboard")
-                            .foregroundColor(.secondary)
-                    }
-                    .buttonStyle(.plain)
                 }
             }
             .onChange(of: displayName) { _ in
@@ -846,7 +846,6 @@ struct ContentView: View {
         IPAExpandableCard(
             icon: "photo",
             title: "App Icon",
-            subtitle: iconSubtitle,
             isExpanded: $iconExpanded
         ) {
             VStack(spacing: 16) {
@@ -868,6 +867,7 @@ struct ContentView: View {
                     } label: {
                         Label("Photos", systemImage: "photo")
                             .font(.subheadline.weight(.semibold))
+                            .foregroundColor(.white)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 9)
                     }
@@ -878,6 +878,7 @@ struct ContentView: View {
                     } label: {
                         Label("Files", systemImage: "folder")
                             .font(.subheadline.weight(.semibold))
+                            .foregroundColor(.white)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 9)
                     }
@@ -911,14 +912,6 @@ struct ContentView: View {
         }
     }
 
-    private var iconSubtitle: String {
-        guard replacementImage != nil else {
-            return "Original"
-        }
-
-        return replacementIconName.isEmpty ? "Replacement ready" : replacementIconName
-    }
-
     private func resetIcon() {
         replacementImage = nil
         replacementIconName = ""
@@ -930,45 +923,50 @@ struct ContentView: View {
 
     private var toolsCard: some View {
         VStack(alignment: .leading, spacing: 0) {
-            IPAToolRow(title: "IPA Info", icon: "info.circle") {
-                activeSheet = .inspector
-            }
+            IPASectionHeader(
+                title: "Tools",
+                isExpanded: toolsExpanded,
+                action: toggleTools
+            )
+            .padding(.bottom, 4)
 
-            IPASubtleDivider()
+            if toolsExpanded {
+                IPAToolRow(title: "IPA Info", icon: "info.circle") {
+                    activeSheet = .inspector
+                }
 
-            IPAToolRow(title: "Version", icon: "number") {
-                activeSheet = .version
-            }
+                IPASubtleDivider()
 
-            IPASubtleDivider()
+                IPAToolRow(title: "Version", icon: "number") {
+                    activeSheet = .version
+                }
 
-            IPAToolRow(title: "URL Scheme", icon: "link", detail: urlSchemeDetail) {
-                activeSheet = .urlScheme
-            }
+                IPASubtleDivider()
 
-            IPASubtleDivider()
+                IPAToolRow(title: "URL Scheme", icon: "link") {
+                    activeSheet = .urlScheme
+                }
 
-            IPAToolRow(title: "Browse Files", icon: "folder") {
-                activeSheet = .browser
-            }
+                IPASubtleDivider()
 
-            IPASubtleDivider()
+                IPAToolRow(title: "Browse Files", icon: "folder") {
+                    activeSheet = .browser
+                }
 
-            IPAToolRow(title: "Advanced Info.plist", icon: "list.bullet.rectangle") {
-                activeSheet = .plistEditor
-            }
+                IPASubtleDivider()
 
-            IPASubtleDivider()
+                IPAToolRow(title: "Compare IPAs", icon: "arrow.left.arrow.right") {
+                    activeSheet = .comparison
+                }
 
-            IPAToolRow(title: "Compare IPAs", icon: "arrow.left.arrow.right") {
-                activeSheet = .comparison
+                IPASubtleDivider()
+
+                IPAToolRow(title: "Advanced Info.plist", icon: "list.bullet.rectangle") {
+                    activeSheet = .plistEditor
+                }
             }
         }
         .cardStyle()
-    }
-
-    private var urlSchemeDetail: String {
-        cleanURLScheme.isEmpty ? "None" : cleanURLScheme
     }
 
     private var validationIcon: String {
@@ -1058,15 +1056,11 @@ struct ContentView: View {
 
     private var outputSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            IPACardHeader(icon: "checkmark.circle.fill", title: "Exported IPA")
-
-            Text(
-                hasPendingChanges
-                    ? "Previous export — settings changed since."
-                    : "Export complete."
+            IPACardHeader(
+                icon: "checkmark.circle.fill",
+                title: "Exported IPA",
+                trailingText: fileSizeSummary
             )
-            .font(.subheadline.weight(.semibold))
-            .fixedSize(horizontal: false, vertical: true)
 
             HStack(spacing: 10) {
                 Image(systemName: "doc.zipper")
@@ -1081,14 +1075,10 @@ struct ContentView: View {
                     }
 
                 Button {
-                    UIPasteboard.general.string = exportFileName
-                    copiedFilename = true
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) {
-                        copiedFilename = false
-                    }
+                    exportFileName = ""
                 } label: {
-                    Image(systemName: copiedFilename ? "checkmark" : "doc.on.doc")
-                        .foregroundColor(.blue)
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(.secondary)
                 }
                 .buttonStyle(.plain)
             }
@@ -1097,16 +1087,6 @@ struct ContentView: View {
             .background(Color.secondary.opacity(0.08))
             .clipShape(RoundedRectangle(cornerRadius: 12))
 
-            Button {
-                activeSheet = .share
-            } label: {
-                Label("Save / Share IPA", systemImage: "square.and.arrow.up")
-                    .font(.subheadline.weight(.semibold))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 9)
-            }
-            .ipaidBorderedButton()
-
             if !exportSummary.isEmpty {
                 Text(exportSummary)
                     .font(.caption)
@@ -1114,15 +1094,46 @@ struct ContentView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            HStack(spacing: 18) {
-                Text("Before: \(IPAFormatting.fileSize(inputFileSize))")
-                Text("After: \(IPAFormatting.fileSize(outputFileSize))")
-                Spacer(minLength: 0)
+            HStack(spacing: 10) {
+                Button(action: discardExport) {
+                    Text("Discard")
+                        .font(.subheadline.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 9)
+                }
+                .ipaidGlassButton(.red)
+
+                Button {
+                    activeSheet = .share
+                } label: {
+                    Label("Save / Share", systemImage: "square.and.arrow.up")
+                        .font(.subheadline.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 9)
+                }
+                .ipaidBorderedButton()
             }
-            .font(.caption)
-            .foregroundColor(.secondary)
         }
         .cardStyle()
+    }
+
+    private var fileSizeSummary: String {
+        "Before \(IPAFormatting.fileSize(inputFileSize)) · After \(IPAFormatting.fileSize(outputFileSize))"
+    }
+
+    private func discardExport() {
+        guard let url = exportURL else {
+            return
+        }
+
+        session?.discardExport(at: url)
+
+        exportURL = nil
+        exportFileName = ""
+        exportSummary = ""
+        inputFileSize = 0
+        outputFileSize = 0
+        lastExportSignature = nil
     }
 
     private var extensionList: some View {
@@ -1346,7 +1357,6 @@ struct ContentView: View {
         expandedExtensionInfo = nil
         infoTapLocked = false
 
-        copiedFilename = false
         copiedBundleID = false
 
         exportSummary = ""
@@ -1437,7 +1447,6 @@ struct ContentView: View {
 
                     plistOverrides = InfoPlistOverrides()
 
-                    copiedFilename = false
                     copiedBundleID = false
                     duplicateMode = false
 
@@ -1658,11 +1667,10 @@ struct ContentView: View {
     }
 
     private var exportBaseName: String {
-        let name = originalFileName.isEmpty
-            ? "IPA"
-            : URL(fileURLWithPath: originalFileName).deletingPathExtension().lastPathComponent
-
-        return "\(name)-ipaid.ipa"
+        IPAFormatting.exportFileName(
+            originalFileName: originalFileName,
+            suffix: exportSuffix
+        )
     }
 
     private func exportSummaryText(_ summary: IPAModificationSummary) -> String {
@@ -1703,7 +1711,6 @@ struct ContentView: View {
 
     private func clearStaleExportState() {
         exportSummary = ""
-        copiedFilename = false
     }
 
 }

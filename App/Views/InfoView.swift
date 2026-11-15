@@ -4,6 +4,7 @@ import UIKit
 struct InfoView: View {
     let currentVersion: String
     @Binding var appearanceMode: String
+    @Binding var exportSuffix: String
 
     @State private var isCheckingForUpdate = false
     @State private var updateAlert: UpdateAlert?
@@ -42,6 +43,9 @@ struct InfoView: View {
             appearanceControl
                 .padding(.top, 15)
                 .padding(.bottom, 4)
+
+            exportSuffixField
+                .padding(.top, 18)
 
             subtleDivider
                 .padding(.top, 30)
@@ -115,6 +119,38 @@ struct InfoView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(UIColor.secondarySystemGroupedBackground))
         .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+    }
+
+    private var exportSuffixField: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Export filename suffix")
+                .font(.subheadline.weight(.semibold))
+
+            IPAFieldBox {
+                HStack(spacing: 8) {
+                    TextField(IPAFormatting.defaultExportSuffix, text: $exportSuffix)
+                        .autocapitalization(.none)
+                        .disableAutocorrection(true)
+                        .font(.system(.body, design: .monospaced))
+                        .lineLimit(1)
+
+                    if !exportSuffix.isEmpty {
+                        Button {
+                            exportSuffix = ""
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundColor(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+
+            Text("Added to exported IPA filenames. Leave it empty for none.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 
     private var appearanceControl: some View {

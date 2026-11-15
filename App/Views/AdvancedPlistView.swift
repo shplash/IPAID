@@ -16,7 +16,7 @@ struct AdvancedPlistView: View {
     @State private var addError = ""
 
     var body: some View {
-        IPASheet(title: "Advanced Info.plist", onClose: onClose) {
+        IPASheet(title: "Advanced Info.plist", onClose: onClose, sizesToContent: false) {
             IPAInfoBanner(
                 message: "These values are written directly to Info.plist. Leave them unchanged unless you know the key.",
                 color: .orange

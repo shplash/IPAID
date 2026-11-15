@@ -94,13 +94,13 @@ struct ModificationPreviewView: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
             }
-            .ipaidBorderedButton(.red)
+            .ipaidGlassButton(.red)
 
             Button(action: onExport) {
                 HStack(spacing: 8) {
                     if isExporting {
                         ProgressView()
-                            .accentColor(.white)
+                            .accentColor(.green)
                     }
 
                     Text(isExporting ? "Exporting…" : "Confirm")
@@ -109,7 +109,7 @@ struct ModificationPreviewView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 12)
             }
-            .ipaidProminentButton(.green)
+            .ipaidGlassButton(.green)
             .disabled(isExporting || summary.isEmpty)
         }
     }
