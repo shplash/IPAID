@@ -950,15 +950,15 @@ struct ContentView: View {
 
     private var toolsCard: some View {
         VStack(alignment: .leading, spacing: 0) {
-            IPASectionHeader(
-                title: "Tools",
-                isExpanded: toolsExpanded,
-                action: toggleTools,
-                topPadding: 0
-            )
-            .padding(.bottom, 4)
-
             if toolsExpanded {
+                IPASectionHeader(
+                    title: "Tools",
+                    isExpanded: true,
+                    action: toggleTools,
+                    topPadding: 0
+                )
+                .padding(.bottom, 4)
+
                 IPAToolRow(title: "IPA Info", icon: "info.circle") {
                     activeSheet = .inspector
                 }
@@ -992,6 +992,15 @@ struct ContentView: View {
                 IPAToolRow(title: "Advanced Info.plist", icon: "list.bullet.rectangle") {
                     activeSheet = .plistEditor
                 }
+            } else {
+                Button(action: toggleTools) {
+                    IPACardHeader(
+                        icon: "wrench.and.screwdriver",
+                        title: "Tools",
+                        isExpanded: false
+                    )
+                }
+                .buttonStyle(.plain)
             }
         }
         .cardStyle()

@@ -4,12 +4,12 @@ import XCTest
 final class TextFileEditingTests: XCTestCase {
 
     func testCommonTextFormatsAreEditable() {
-        XCTAssertTrue(TextFileEditing.isEditablePath("Payload/App.app/Info.plist"))
         XCTAssertTrue(TextFileEditing.isEditablePath("Payload/App.app/data.json"))
         XCTAssertTrue(TextFileEditing.isEditablePath("Payload/App.app/strings/en.strings"))
         XCTAssertTrue(TextFileEditing.isEditablePath("Payload/App.app/readme.txt"))
         XCTAssertTrue(TextFileEditing.isEditablePath("Payload/App.app/config.yaml"))
         XCTAssertTrue(TextFileEditing.isEditablePath("Payload/App.app/App.entitlements"))
+        XCTAssertTrue(TextFileEditing.isEditablePath("Payload/App.app/Settings.bundle/Root.plist"))
     }
 
     func testBinaryFormatsAreNotEditable() {
@@ -22,26 +22,20 @@ final class TextFileEditingTests: XCTestCase {
         XCTAssertFalse(TextFileEditing.isEditablePath("Payload/App.app/"))
     }
 
-    func testMainAndExtensionPlistsAreExcluded() throws {
-        let directory = try Fixtures.temporaryDirectory()
-        defer { try? FileManager.default.removeItem(at: directory) }
-
-        let source = directory.appendingPathComponent("Example.ipa")
-        try Fixtures.makeIPA(at: source)
-        let archive = try IPAArchive(url: source)
-
+    func testInfoPlistIsExcludedAtEveryLocation() {
+        XCTAssertTrue(TextFileEditing.isInfoPlist("Payload/App.app/Info.plist"))
+        XCTAssertTrue(TextFileEditing.isInfoPlist("Payload/App.app/PlugIns/Widget.appex/Info.plist"))
         XCTAssertTrue(
-            TextFileEditing.isExcludedSystemPlist(archive.info.infoPlistPath, info: archive.info)
+            TextFileEditing.isInfoPlist("Payload/App.app/Frameworks/X.framework/Info.plist")
         )
+        XCTAssertTrue(TextFileEditing.isInfoPlist("Payload/App.app/Settings.bundle/INFO.PLIST"))
+        XCTAssertFalse(TextFileEditing.isInfoPlist("Payload/App.app/Settings.bundle/Root.plist"))
 
-        let extensionPlist = archive.info.extensions[0].infoPlistPath
-
-        XCTAssertTrue(
-            TextFileEditing.isExcludedSystemPlist(extensionPlist, info: archive.info)
-        )
+        XCTAssertFalse(TextFileEditing.isEditablePath("Payload/App.app/Info.plist"))
         XCTAssertFalse(
-            TextFileEditing.isExcludedSystemPlist("Payload/Example.app/other.plist", info: archive.info)
+            TextFileEditing.isEditablePath("Payload/App.app/Frameworks/X.framework/Info.plist")
         )
+        XCTAssertFalse(TextFileEditing.isEditablePath("Payload/App.app/Settings.bundle/INFO.PLIST"))
     }
 
     func testPlainTextDecodes() {
@@ -56,6 +50,16 @@ final class TextFileEditingTests: XCTestCase {
 
     func testInvalidUTF8IsRejected() {
         XCTAssertNil(TextFileEditing.decode(Data([0xC3, 0x28])))
+    }
+
+    func testBinaryPlistIsRejectedAsText() throws {
+        let binary = try PropertyListSerialization.data(
+            fromPropertyList: ["Key": "Value"],
+            format: .binary,
+            options: 0
+        )
+
+        XCTAssertNil(TextFileEditing.decode(binary))
     }
 
     func testOversizedFilesAreNotDecoded() {
@@ -87,7 +91,6 @@ final class TextFileEditingTests: XCTestCase {
         let replacement = Data("\"hello\" = \"Edited\";".utf8)
 
         XCTAssertTrue(TextFileEditing.isEditablePath(target))
-        XCTAssertFalse(TextFileEditing.isExcludedSystemPlist(target, info: archive.info))
 
         var modifications = Fixtures.modifications(for: archive.info)
         modifications.editedFiles[target] = replacement

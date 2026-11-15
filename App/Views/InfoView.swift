@@ -147,7 +147,7 @@ struct InfoView: View {
     private var skipReviewRow: some View {
         Toggle(isOn: $skipReview) {
             HStack(spacing: 13) {
-                settingIcon("forward.end.fill")
+                settingIcon("forward.end")
 
                 Text("Skip Review Changes")
                     .font(.subheadline.weight(.semibold))
@@ -166,7 +166,7 @@ struct InfoView: View {
     private var exportSuffixField: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 13) {
-                settingIcon("tag.fill")
+                settingIcon("tag")
 
                 Text("Exported Filename Suffix")
                     .font(.subheadline.weight(.semibold))

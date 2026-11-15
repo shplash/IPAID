@@ -10,6 +10,10 @@ enum TextFileEditing {
         "entitlements", "css", "html", "js", "sh"
     ]
 
+    static func isInfoPlist(_ path: String) -> Bool {
+        (path as NSString).lastPathComponent.lowercased() == "info.plist"
+    }
+
     static func isEditablePath(_ path: String) -> Bool {
         let name = (path as NSString).lastPathComponent
 
@@ -17,15 +21,11 @@ enum TextFileEditing {
             return false
         }
 
-        return editableExtensions.contains((name as NSString).pathExtension.lowercased())
-    }
-
-    static func isExcludedSystemPlist(_ path: String, info: IPABundleInfo) -> Bool {
-        if path == info.infoPlistPath {
-            return true
+        guard !isInfoPlist(path) else {
+            return false
         }
 
-        return info.extensions.contains { $0.infoPlistPath == path }
+        return editableExtensions.contains((name as NSString).pathExtension.lowercased())
     }
 
     static func decode(_ data: Data) -> String? {

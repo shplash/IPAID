@@ -112,11 +112,6 @@ struct IPAInfoSheet: View {
 
                 IPASubtleDivider()
                 IPAMetadataRow(
-                    label: "Signed",
-                    value: info.isSigned ? "Yes — re-sign after export" : "No"
-                )
-                IPASubtleDivider()
-                IPAMetadataRow(
                     label: "Bundle path",
                     value: info.appRoot,
                     monospaced: true

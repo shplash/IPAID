@@ -143,8 +143,7 @@ final class IPAArchive {
             architectures: architectures,
             fileSize: size,
             targetSDK: IPABundleParsing.targetSDK(from: dictionary),
-            deviceFamilies: IPABundleParsing.deviceFamilies(from: dictionary),
-            isSigned: IPABundleParsing.isSigned(entries: list, appRoot: infoPoint.appRoot)
+            deviceFamilies: IPABundleParsing.deviceFamilies(from: dictionary)
         )
     }
 

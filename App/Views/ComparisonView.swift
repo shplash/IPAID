@@ -72,7 +72,7 @@ struct ComparisonView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 9)
             }
-            .ipaidBorderedButton()
+            .ipaidGlassButton(.blue)
         }
         .cardStyle()
     }

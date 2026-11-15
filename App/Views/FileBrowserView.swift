@@ -140,43 +140,58 @@ struct FileBrowserView: View {
     }
 
     private func row(for item: BrowserItem) -> some View {
-        HStack(spacing: 8) {
-            Button {
-                errorMessage = nil
-
-                if item.isDirectory {
+        Group {
+            if item.isDirectory {
+                Button {
+                    errorMessage = nil
                     model.open(item)
-                    return
-                }
-
-                model.extract(item) { result in
-                    switch result {
-                    case let .success(url):
-                        presentation = .share(url)
-                    case let .failure(error):
-                        errorMessage = error.localizedDescription
+                } label: {
+                    HStack(spacing: 8) {
+                        leading(for: item)
+                        trailing(for: item)
                     }
+                    .contentShape(Rectangle())
+                    .padding(.vertical, 12)
                 }
-            } label: {
-                HStack(spacing: 12) {
-                    Image(systemName: icon(for: item))
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(item.isDirectory ? .blue : .secondary)
-                        .frame(width: 24)
+                .buttonStyle(.plain)
+            } else {
+                HStack(spacing: 6) {
+                    Button {
+                        open(item)
+                    } label: {
+                        leading(for: item)
+                            .contentShape(Rectangle())
+                            .padding(.vertical, 12)
+                    }
+                    .buttonStyle(.plain)
 
-                    Text(item.name)
-                        .font(.subheadline)
-                        .foregroundColor(.primary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
+                    editControl(for: item)
 
-                    Spacer(minLength: 4)
+                    trailing(for: item)
                 }
-                .contentShape(Rectangle())
-                .padding(.vertical, 12)
             }
-            .buttonStyle(.plain)
+        }
+    }
 
+    private func leading(for item: BrowserItem) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon(for: item))
+                .font(.system(size: 16, weight: .medium))
+                .foregroundColor(item.isDirectory ? .blue : .secondary)
+                .frame(width: 24)
+
+            Text(item.name)
+                .font(.subheadline)
+                .foregroundColor(.primary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+
+            Spacer(minLength: 4)
+        }
+    }
+
+    private func editControl(for item: BrowserItem) -> some View {
+        Group {
             if item.isEditable {
                 Button {
                     beginEdit(item)
@@ -188,25 +203,38 @@ struct FileBrowserView: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .frame(width: 34, alignment: .trailing)
-            } else {
-                Color.clear
-                    .frame(width: 34, height: 1)
             }
+        }
+        .frame(width: 30, alignment: .trailing)
+    }
 
-            if item.isDirectory {
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundColor(Color.secondary.opacity(0.6))
-                    .frame(width: 60, alignment: .trailing)
-            } else {
-                Text(IPAFormatting.fileSize(item.size))
-                    .font(.footnote)
-                    .foregroundColor(.secondary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.9)
-                    .frame(width: 60, alignment: .trailing)
-                    .ipaidMonospacedDigits()
+    @ViewBuilder
+    private func trailing(for item: BrowserItem) -> some View {
+        if item.isDirectory {
+            Image(systemName: "chevron.right")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundColor(Color.secondary.opacity(0.6))
+                .frame(width: 64, alignment: .trailing)
+        } else {
+            Text(IPAFormatting.fileSize(item.size))
+                .font(.footnote)
+                .foregroundColor(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
+                .frame(width: 64, alignment: .trailing)
+                .ipaidMonospacedDigits()
+        }
+    }
+
+    private func open(_ item: BrowserItem) {
+        errorMessage = nil
+
+        model.extract(item) { result in
+            switch result {
+            case let .success(url):
+                presentation = .share(url)
+            case let .failure(error):
+                errorMessage = error.localizedDescription
             }
         }
     }
@@ -302,6 +330,7 @@ final class FileBrowserModel: ObservableObject {
     private var baseDirectory: URL?
     private var directories: Set<String> = []
     private var files: [String: IPAEntry] = [:]
+    private var editability: [String: Editability] = [:]
 
     var title: String {
         if path.isEmpty {
@@ -324,6 +353,7 @@ final class FileBrowserModel: ObservableObject {
             self.archive = archive
             baseDirectory = url.deletingLastPathComponent()
             files = [:]
+            editability = [:]
 
             for entry in archive.entries where entry.kind != .directory {
                 files[entry.path] = entry
@@ -411,25 +441,75 @@ final class FileBrowserModel: ObservableObject {
             throw SimpleError("The IPA is no longer open.")
         }
 
+        if let cached = editability[item.path] {
+            switch cached {
+            case let .editable(text):
+                return text
+            case .notEditable:
+                throw SimpleError("This file cannot be edited as text.")
+            }
+        }
+
         let data = try archive.data(at: item.path)
 
         guard let text = TextFileEditing.decode(data) else {
+            editability[item.path] = .notEditable
             throw SimpleError("This file cannot be edited as text.")
         }
+
+        editability[item.path] = .editable(text)
 
         return text
     }
 
-    private func isEditable(_ path: String) -> Bool {
+    private enum Editability {
+        case editable(String)
+        case notEditable
+    }
+
+    private func isEditable(_ entry: IPAEntry) -> Bool {
+        if let cached = editability[entry.path] {
+            if case .editable = cached {
+                return true
+            }
+
+            return false
+        }
+
+        let result = inspect(entry)
+        editability[entry.path] = result
+
+        if case .editable = result {
+            return true
+        }
+
+        return false
+    }
+
+    private func inspect(_ entry: IPAEntry) -> Editability {
         guard let archive else {
-            return false
+            return .notEditable
         }
 
-        guard TextFileEditing.isEditablePath(path) else {
-            return false
+        guard entry.kind == .file else {
+            return .notEditable
         }
 
-        return !TextFileEditing.isExcludedSystemPlist(path, info: archive.info)
+        guard TextFileEditing.isEditablePath(entry.path) else {
+            return .notEditable
+        }
+
+        guard entry.uncompressedSize > 0,
+              entry.uncompressedSize <= TextFileEditing.maximumEditableSize else {
+            return .notEditable
+        }
+
+        guard let data = try? archive.data(at: entry.path),
+              let text = TextFileEditing.decode(data) else {
+            return .notEditable
+        }
+
+        return .editable(text)
     }
 
     private func addParentDirectories(of path: String) {
@@ -490,7 +570,7 @@ final class FileBrowserModel: ObservableObject {
                     name: (entry.path as NSString).lastPathComponent,
                     isDirectory: false,
                     size: Int64(entry.uncompressedSize),
-                    isEditable: isEditable(entry.path)
+                    isEditable: isEditable(entry)
                 )
             )
         }

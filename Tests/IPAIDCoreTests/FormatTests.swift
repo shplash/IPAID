@@ -212,15 +212,4 @@ final class FormatTests: XCTestCase {
         XCTAssertEqual(IPABundleParsing.targetSDK(from: ["DTPlatformVersion": "18.0"]), "18.0")
         XCTAssertEqual(IPABundleParsing.targetSDK(from: [:]), "")
     }
-
-    func testSigningDetectionUsesTheCodeResourcesEntry() throws {
-        let directory = try Fixtures.temporaryDirectory()
-        defer { try? FileManager.default.removeItem(at: directory) }
-
-        let source = directory.appendingPathComponent("Example.ipa")
-        try Fixtures.makeIPA(at: source)
-        let archive = try IPAArchive(url: source)
-
-        XCTAssertFalse(archive.info.isSigned)
-    }
 }

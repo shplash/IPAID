@@ -181,7 +181,6 @@ struct IPABundleInfo: Equatable {
     let fileSize: Int64
     var targetSDK: String = ""
     var deviceFamilies: [String] = []
-    var isSigned: Bool = false
 
     var executablePath: String {
         executable.isEmpty ? appRoot : appRoot + executable
@@ -232,12 +231,6 @@ enum IPABundleParsing {
         }
 
         return ""
-    }
-
-    static func isSigned(entries: [IPAEntry], appRoot: String) -> Bool {
-        let resource = appRoot + "_CodeSignature/CodeResources"
-
-        return entries.contains { $0.path == resource }
     }
 
     static func displayName(from dictionary: [String: Any], appRoot: String) -> String {
