@@ -273,6 +273,15 @@ final class FileBrowserModel: ObservableObject {
 
         DispatchQueue.global(qos: .userInitiated).async {
             do {
+                let name = (item.name as NSString).lastPathComponent
+
+                guard !name.isEmpty,
+                      name != ".",
+                      name != "..",
+                      !name.contains("/") else {
+                    throw SimpleError("This file has a name that cannot be extracted safely.")
+                }
+
                 let data = try archive.data(at: item.path)
                 let directory = (self.baseDirectory ?? FileManager.default.temporaryDirectory)
                     .appendingPathComponent("Extracted", isDirectory: true)
@@ -282,7 +291,7 @@ final class FileBrowserModel: ObservableObject {
                     withIntermediateDirectories: true
                 )
 
-                let destination = directory.appendingPathComponent(item.name)
+                let destination = directory.appendingPathComponent(name)
                 try? FileManager.default.removeItem(at: destination)
                 try data.write(to: destination)
 
