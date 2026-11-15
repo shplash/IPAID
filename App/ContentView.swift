@@ -926,7 +926,8 @@ struct ContentView: View {
             IPASectionHeader(
                 title: "Tools",
                 isExpanded: toolsExpanded,
-                action: toggleTools
+                action: toggleTools,
+                topPadding: 0
             )
             .padding(.bottom, 4)
 

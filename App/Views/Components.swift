@@ -125,6 +125,7 @@ struct IPASectionHeader: View {
     let title: String
     var isExpanded: Bool? = nil
     var action: (() -> Void)? = nil
+    var topPadding: CGFloat = 8
 
     var body: some View {
         Group {
@@ -155,7 +156,7 @@ struct IPASectionHeader: View {
         }
         .contentShape(Rectangle())
         .padding(.horizontal, 4)
-        .padding(.top, 8)
+        .padding(.top, topPadding)
     }
 }
 
