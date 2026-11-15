@@ -45,6 +45,37 @@ extension View {
             self
         }
     }
+
+    func ipaidGlassButton(_ tint: Color = .blue) -> some View {
+        self.buttonStyle(IPAGlassButtonStyle(tint: tint))
+    }
+}
+
+struct IPAGlassButtonStyle: ButtonStyle {
+    var tint: Color = .blue
+
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .foregroundColor(isEnabled ? tint : .secondary)
+            .background(glass(pressed: configuration.isPressed))
+            .contentShape(Rectangle())
+    }
+
+    @ViewBuilder
+    private func glass(pressed: Bool) -> some View {
+        let shape = RoundedRectangle(cornerRadius: 10, style: .continuous)
+
+        if #available(iOS 15.0, *) {
+            shape
+                .fill(.ultraThinMaterial)
+                .overlay(shape.fill(tint.opacity(pressed ? 0.26 : 0.16)))
+                .overlay(shape.strokeBorder(tint.opacity(0.22), lineWidth: 1))
+        } else {
+            shape.fill(tint.opacity(pressed ? 0.30 : 0.18))
+        }
+    }
 }
 
 struct IPAIDProminentButtonStyle: ButtonStyle {

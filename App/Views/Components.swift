@@ -15,17 +15,22 @@ struct IPASheet<Content: View>: View {
     private let title: String
     private let onClose: (() -> Void)?
     private let centeredTitle: Bool
+    private let sizesToContent: Bool
     private let content: Content
+
+    @State private var contentHeight: CGFloat = 0
 
     init(
         title: String,
         onClose: (() -> Void)? = nil,
         centeredTitle: Bool = false,
+        sizesToContent: Bool = true,
         @ViewBuilder content: () -> Content
     ) {
         self.title = title
         self.onClose = onClose
         self.centeredTitle = centeredTitle
+        self.sizesToContent = sizesToContent
         self.content = content()
     }
 
@@ -43,8 +48,19 @@ struct IPASheet<Content: View>: View {
                     .padding(.horizontal, 16)
                     .padding(.top, 4)
                     .padding(.bottom, 28)
+                    .background(heightReader)
                 }
             }
+        }
+        .modifier(IPASheetSizing(height: contentHeight, enabled: sizesToContent))
+        .onPreferenceChange(IPASheetHeightKey.self) { height in
+            contentHeight = height
+        }
+    }
+
+    private var heightReader: some View {
+        GeometryReader { proxy in
+            Color.clear.preference(key: IPASheetHeightKey.self, value: proxy.size.height)
         }
     }
 
@@ -72,6 +88,36 @@ struct IPASheet<Content: View>: View {
         .padding(.horizontal, 16)
         .padding(.top, 18)
         .padding(.bottom, 12)
+    }
+}
+
+private struct IPASheetHeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
+private struct IPASheetSizing: ViewModifier {
+    let height: CGFloat
+    let enabled: Bool
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if #available(iOS 16.0, *), enabled {
+            content.presentationDetents([.height(detentHeight)])
+        } else {
+            content
+        }
+    }
+
+    private var detentHeight: CGFloat {
+        let chrome: CGFloat = 76
+        let measured = height > 0 ? height + chrome : 360
+        let limit = UIScreen.main.bounds.height * 0.92
+
+        return min(max(measured, 240), limit)
     }
 }
 
@@ -117,6 +163,7 @@ struct IPACardHeader: View {
     let icon: String
     let title: String
     var subtitle: String? = nil
+    var trailingText: String? = nil
     var isExpanded: Bool? = nil
     var tint: Color = .blue
 
@@ -143,6 +190,14 @@ struct IPACardHeader: View {
 
             Spacer(minLength: 8)
 
+            if let trailingText, !trailingText.isEmpty {
+                Text(trailingText)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+
             if let isExpanded {
                 Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
                     .font(.caption.bold())
@@ -157,6 +212,7 @@ struct IPAExpandableCard<Content: View>: View {
     private let icon: String
     private let title: String
     private let subtitle: String?
+    private let trailingText: String?
     private let tint: Color
     private let content: Content
 
@@ -166,6 +222,7 @@ struct IPAExpandableCard<Content: View>: View {
         icon: String,
         title: String,
         subtitle: String? = nil,
+        trailingText: String? = nil,
         tint: Color = .blue,
         isExpanded: Binding<Bool>,
         @ViewBuilder content: () -> Content
@@ -173,6 +230,7 @@ struct IPAExpandableCard<Content: View>: View {
         self.icon = icon
         self.title = title
         self.subtitle = subtitle
+        self.trailingText = trailingText
         self.tint = tint
         self._isExpanded = isExpanded
         self.content = content()
@@ -189,6 +247,7 @@ struct IPAExpandableCard<Content: View>: View {
                     icon: icon,
                     title: title,
                     subtitle: subtitle,
+                    trailingText: trailingText,
                     isExpanded: isExpanded,
                     tint: tint
                 )
@@ -344,7 +403,6 @@ struct IPALoadingRow: View {
 struct IPAToolRow: View {
     let title: String
     let icon: String
-    var detail: String? = nil
     let action: () -> Void
 
     var body: some View {
@@ -360,14 +418,6 @@ struct IPAToolRow: View {
                     .foregroundColor(.primary)
 
                 Spacer(minLength: 8)
-
-                if let detail, !detail.isEmpty {
-                    Text(detail)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                }
 
                 Image(systemName: "chevron.right")
                     .font(.system(size: 13, weight: .bold))
