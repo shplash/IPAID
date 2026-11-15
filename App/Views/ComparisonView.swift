@@ -17,17 +17,7 @@ struct ComparisonView: View {
             fileCard
 
             if isComparing {
-                HStack(spacing: 10) {
-                    ProgressView()
-                        .scaleEffect(0.8)
-                    Text("Comparing…")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(13)
-                .background(Color.secondary.opacity(0.06))
-                .clipShape(RoundedRectangle(cornerRadius: 12))
+                IPALoadingRow(text: "Comparing…")
             }
 
             if let errorMessage {

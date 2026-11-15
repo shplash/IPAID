@@ -55,7 +55,7 @@ struct IPAInfoSheet: View {
             IPASubtleDivider()
             IPAMetadataRow(
                 label: "File size",
-                value: ByteCountFormatter.string(fromByteCount: info.fileSize, countStyle: .file)
+                value: IPAFormatting.fileSize(info.fileSize)
             )
             IPASubtleDivider()
             IPAMetadataRow(label: "Extensions", value: "\(info.extensions.count)")

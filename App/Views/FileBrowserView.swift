@@ -143,7 +143,7 @@ struct FileBrowserView: View {
                         .font(.system(size: 12, weight: .bold))
                         .foregroundColor(Color.secondary.opacity(0.6))
                 } else {
-                    Text(ByteCountFormatter.string(fromByteCount: item.size, countStyle: .file))
+                    Text(IPAFormatting.fileSize(item.size))
                         .font(.caption)
                         .foregroundColor(.secondary)
                         .ipaidMonospacedDigits()

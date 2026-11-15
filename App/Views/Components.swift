@@ -62,9 +62,11 @@ struct IPASectionTitle: View {
     let title: String
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 10) {
             Image(systemName: icon)
+                .font(.system(size: 18, weight: .semibold))
                 .foregroundColor(.blue)
+                .frame(width: 24, alignment: .leading)
 
             Text(title)
                 .font(.headline.weight(.bold))
@@ -109,6 +111,56 @@ struct IPACardHeader: View {
             }
         }
         .contentShape(Rectangle())
+    }
+}
+
+struct IPAExpandableCard<Content: View>: View {
+    private let icon: String
+    private let title: String
+    private let subtitle: String?
+    private let tint: Color
+    private let content: Content
+
+    @Binding private var isExpanded: Bool
+
+    init(
+        icon: String,
+        title: String,
+        subtitle: String? = nil,
+        tint: Color = .blue,
+        isExpanded: Binding<Bool>,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.icon = icon
+        self.title = title
+        self.subtitle = subtitle
+        self.tint = tint
+        self._isExpanded = isExpanded
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    isExpanded.toggle()
+                }
+            } label: {
+                IPACardHeader(
+                    icon: icon,
+                    title: title,
+                    subtitle: subtitle,
+                    isExpanded: isExpanded,
+                    tint: tint
+                )
+            }
+            .buttonStyle(.plain)
+
+            if isExpanded {
+                content
+            }
+        }
+        .cardStyle()
     }
 }
 
@@ -209,6 +261,26 @@ struct IPAInfoBanner: View {
         }
         .padding(13)
         .background(color.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+}
+
+struct IPALoadingRow: View {
+    let text: String
+
+    var body: some View {
+        HStack(spacing: 10) {
+            ProgressView()
+                .scaleEffect(0.8)
+
+            Text(text)
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+
+            Spacer(minLength: 0)
+        }
+        .padding(13)
+        .background(Color.secondary.opacity(0.08))
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 }
