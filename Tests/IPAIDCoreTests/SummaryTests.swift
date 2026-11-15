@@ -95,6 +95,44 @@ final class SummaryTests: XCTestCase {
         XCTAssertFalse(summary.warnings.contains { $0.lowercased().contains("re-sign") })
     }
 
+    func testIconFilesAreCollectedSeparately() throws {
+        let archive = try makeArchive()
+
+        var modifications = Fixtures.modifications(for: archive.info)
+        modifications.icon = IPAIconReplacement(
+            imageName: "replacement.png",
+            previewData: Data(),
+            files: Fixtures.iconFiles(for: archive.info.iconPlan)
+        )
+
+        let summary = IPAModificationSummary(
+            info: archive.info,
+            entries: archive.entries,
+            modifications: modifications
+        )
+
+        let expected = archive.info.iconPlan.existingSlots.map(\.path).sorted()
+
+        XCTAssertEqual(summary.iconFilePaths, expected)
+        XCTAssertTrue(summary.iconFilePaths.allSatisfy { summary.modifiedFiles.contains($0) })
+        XCTAssertFalse(summary.iconFilePaths.contains(archive.info.infoPlistPath))
+    }
+
+    func testIconFilesAreEmptyWithoutAnIconChange() throws {
+        let archive = try makeArchive()
+
+        var modifications = Fixtures.modifications(for: archive.info)
+        modifications.displayName = "Renamed"
+
+        let summary = IPAModificationSummary(
+            info: archive.info,
+            entries: archive.entries,
+            modifications: modifications
+        )
+
+        XCTAssertTrue(summary.iconFilePaths.isEmpty)
+    }
+
     func testExtensionRemovalIsListedInTheSummary() throws {
         let archive = try makeArchive()
         let root = archive.info.extensions[0].root

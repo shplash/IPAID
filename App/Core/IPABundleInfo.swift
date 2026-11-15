@@ -5,6 +5,7 @@ struct IPAExtensionInfo: Equatable, Identifiable {
     let infoPlistPath: String
     let bundleIdentifier: String
     let displayName: String
+    var extensionPointIdentifier: String = ""
 
     var id: String {
         root
@@ -32,7 +33,11 @@ struct IPAExtensionInfo: Equatable, Identifiable {
         return humanReadable(raw)
     }
 
-    static func tip(forName name: String) -> String {
+    static func tip(forName name: String, pointIdentifier: String = "") -> String {
+        if let point = tip(forPointIdentifier: pointIdentifier) {
+            return point
+        }
+
         let lower = name.lowercased()
 
         if lower.contains("widget") {
@@ -68,6 +73,58 @@ struct IPAExtensionInfo: Equatable, Identifiable {
         }
 
         return "App extension component. Removing it can reduce signing/App ID usage, but some app features may stop working."
+    }
+
+    static func tip(forPointIdentifier identifier: String) -> String? {
+        switch identifier.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "com.apple.widgetkit-extension":
+            return "Adds Home Screen, Lock Screen or StandBy widgets. Removing it disables this app's widgets."
+
+        case "com.apple.widget-extension":
+            return "Adds the legacy Today widget, shown when swiping right on the Home Screen."
+
+        case "com.apple.notification-service-extension":
+            return "Attaches images and media to notifications. Removing it may make notifications plainer."
+
+        case "com.apple.notification-content-extension":
+            return "Draws custom notification layouts. Removing it may disable rich notification views."
+
+        case "com.apple.share-services":
+            return "Adds this app to the system Share Sheet. Removing it stops it appearing in share menus."
+
+        case "com.apple.safari.extension", "com.apple.safari.content-blocker":
+            return "Adds a Safari extension or content blocker. Removing it disables that feature in Safari."
+
+        case "com.apple.intents-service", "com.apple.intents-ui-service":
+            return "Handles Siri, Shortcuts and App Intents. Removing it may disable those actions."
+
+        case "com.apple.keyboard-service":
+            return "Adds a custom keyboard. Removing it removes that keyboard from Settings."
+
+        case "com.apple.watchkit-extension":
+            return "Adds the watchOS app. Removing it may disable Apple Watch features."
+
+        case "com.apple.background-asset-downloader-extension":
+            return "Downloads App Store assets in the background. Removing it may delay first launch."
+
+        case "com.apple.fileprovider-nonui":
+            return "Provides files to the Files app. Removing it removes this app's location from Files."
+
+        case "com.apple.callkit.call-directory":
+            return "Supplies caller ID to Phone. Removing it stops this app identifying incoming calls."
+
+        case "com.apple.photo-editing":
+            return "Adds editing tools to Photos. Removing it removes those tools from the Photos editor."
+
+        case "com.apple.action-extension":
+            return "Adds actions to the Share Sheet and Services. Removing it removes those actions."
+
+        case "com.apple.authentication-services-credential-provider-ui":
+            return "Provides saved passwords to AutoFill. Removing it stops the app filling passwords elsewhere."
+
+        default:
+            return nil
+        }
     }
 
     static func humanReadable(_ raw: String) -> String {

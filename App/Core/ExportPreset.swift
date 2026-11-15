@@ -10,6 +10,7 @@ struct ExportPreset: Codable, Equatable, Identifiable {
     var urlScheme: String?
     var removedExtensions: [String]?
     var createdAt: Date
+    var sourceBundleIdentifier: String?
 
     init(
         id: UUID = UUID(),
@@ -20,7 +21,8 @@ struct ExportPreset: Codable, Equatable, Identifiable {
         buildNumber: String? = nil,
         urlScheme: String? = nil,
         removedExtensions: [String]? = nil,
-        createdAt: Date = Date()
+        createdAt: Date = Date(),
+        sourceBundleIdentifier: String? = nil
     ) {
         self.id = id
         self.name = name
@@ -31,6 +33,7 @@ struct ExportPreset: Codable, Equatable, Identifiable {
         self.urlScheme = urlScheme
         self.removedExtensions = removedExtensions
         self.createdAt = createdAt
+        self.sourceBundleIdentifier = sourceBundleIdentifier
     }
 
     var fieldCount: Int {
@@ -73,40 +76,129 @@ struct ExportPreset: Codable, Equatable, Identifiable {
             urlScheme: modifications.urlSchemeChanged(from: info)
                 ? modifications.trimmedURLScheme
                 : nil,
-            removedExtensions: extensions.isEmpty ? nil : extensions
+            removedExtensions: extensions.isEmpty ? nil : extensions,
+            sourceBundleIdentifier: info.bundleIdentifier
         )
     }
 
-    func apply(
-        to modifications: inout IPAModifications,
-        availableExtensions: [IPAExtensionInfo]
-    ) {
-        if let bundleIdentifier {
-            modifications.bundleIdentifier = bundleIdentifier
+    func plan(
+        applyingTo modifications: IPAModifications,
+        info: IPABundleInfo
+    ) -> ExportPresetPlan {
+        var updated = modifications
+        var changes: [IPAModificationChange] = []
+        var warnings: [String] = []
+
+        if let bundleIdentifier, !bundleIdentifier.isEmpty,
+           bundleIdentifier != modifications.trimmedBundleIdentifier {
+            updated.bundleIdentifier = bundleIdentifier
+            changes.append(
+                IPAModificationChange(
+                    id: "bundleIdentifier",
+                    label: "Bundle ID",
+                    original: modifications.trimmedBundleIdentifier,
+                    updated: bundleIdentifier
+                )
+            )
         }
 
-        if let displayName {
-            modifications.displayName = displayName
+        if let displayName, !displayName.isEmpty,
+           displayName != modifications.trimmedDisplayName {
+            updated.displayName = displayName
+            changes.append(
+                IPAModificationChange(
+                    id: "displayName",
+                    label: "Display name",
+                    original: modifications.trimmedDisplayName,
+                    updated: displayName
+                )
+            )
         }
 
-        if let marketingVersion {
-            modifications.marketingVersion = marketingVersion
+        if let marketingVersion, marketingVersion != modifications.trimmedMarketingVersion {
+            updated.marketingVersion = marketingVersion
+            changes.append(
+                IPAModificationChange(
+                    id: "marketingVersion",
+                    label: "Marketing version",
+                    original: modifications.trimmedMarketingVersion,
+                    updated: marketingVersion
+                )
+            )
         }
 
-        if let buildNumber {
-            modifications.buildNumber = buildNumber
+        if let buildNumber, buildNumber != modifications.trimmedBuildNumber {
+            updated.buildNumber = buildNumber
+            changes.append(
+                IPAModificationChange(
+                    id: "buildNumber",
+                    label: "Build number",
+                    original: modifications.trimmedBuildNumber,
+                    updated: buildNumber
+                )
+            )
         }
 
-        if let urlScheme {
-            modifications.urlScheme = urlScheme
+        if let urlScheme, urlScheme != modifications.trimmedURLScheme {
+            updated.urlScheme = urlScheme
+            changes.append(
+                IPAModificationChange(
+                    id: "urlScheme",
+                    label: "URL scheme",
+                    original: modifications.trimmedURLScheme.isEmpty ? "None" : modifications.trimmedURLScheme,
+                    updated: urlScheme.isEmpty ? "None" : urlScheme
+                )
+            )
         }
 
         if let removedExtensions {
-            let available = Set(availableExtensions.map(\.root))
-            modifications.removedExtensions = Set(
-                removedExtensions.filter { available.contains($0) }
+            let available = Set(info.extensions.map(\.root))
+            let kept = removedExtensions.filter { available.contains($0) }
+            let skipped = removedExtensions.count - kept.count
+
+            if !kept.isEmpty {
+                updated.removedExtensions = Set(kept)
+                changes.append(
+                    IPAModificationChange(
+                        id: "extensions",
+                        label: "Extensions",
+                        original: "\(info.extensions.count) in this app",
+                        updated: "\(info.extensions.count - kept.count) kept, \(kept.count) removed"
+                    )
+                )
+            }
+
+            if skipped == 1 {
+                warnings.append("1 saved extension is not in this app and will be skipped.")
+            } else if skipped > 1 {
+                warnings.append("\(skipped) saved extensions are not in this app and will be skipped.")
+            }
+        }
+
+        let source = (sourceBundleIdentifier ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if !source.isEmpty, source != info.bundleIdentifier {
+            warnings.insert(
+                "Saved from \(source). Check these changes before applying them to \(info.bundleIdentifier).",
+                at: 0
             )
         }
+
+        return ExportPresetPlan(
+            modifications: updated,
+            changes: changes,
+            warnings: warnings
+        )
+    }
+}
+
+struct ExportPresetPlan {
+    let modifications: IPAModifications
+    let changes: [IPAModificationChange]
+    let warnings: [String]
+
+    var isEmpty: Bool {
+        changes.isEmpty
     }
 }
 

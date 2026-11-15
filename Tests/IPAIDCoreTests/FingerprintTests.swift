@@ -147,6 +147,41 @@ final class FingerprintTests: XCTestCase {
         XCTAssertFalse(IPAExtensionInfo.tip(forName: "Something").isEmpty)
     }
 
+    func testExtensionTipsPreferTheExtensionPoint() {
+        let widget = IPAExtensionInfo.tip(
+            forName: "Something",
+            pointIdentifier: "com.apple.widgetkit-extension"
+        )
+
+        XCTAssertTrue(widget.contains("widget"))
+
+        let keyboard = IPAExtensionInfo.tip(
+            forName: "Widget",
+            pointIdentifier: "com.apple.keyboard-service"
+        )
+
+        XCTAssertTrue(keyboard.contains("keyboard"))
+        XCTAssertFalse(keyboard.contains("Home Screen"))
+    }
+
+    func testUnknownExtensionPointFallsBackToTheName() {
+        let tip = IPAExtensionInfo.tip(
+            forName: "Widget",
+            pointIdentifier: "com.example.unknown-point"
+        )
+
+        XCTAssertTrue(tip.contains("widget"))
+    }
+
+    func testUnknownExtensionFallsBackToTheGenericTip() {
+        let tip = IPAExtensionInfo.tip(forName: "Mystery", pointIdentifier: "")
+
+        XCTAssertEqual(
+            tip,
+            "App extension component. Removing it can reduce signing/App ID usage, but some app features may stop working."
+        )
+    }
+
     func testMiddleTruncation() {
         XCTAssertEqual(IPAFormatting.middleTruncated("short.ipa", limit: 34), "short.ipa")
         XCTAssertEqual(IPAFormatting.middleTruncated("abcdefghijklmnop", limit: 10), "abcd…mnop")

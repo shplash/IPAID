@@ -255,12 +255,22 @@ final class IPAArchive {
                     root: root,
                     infoPlistPath: plistPath,
                     bundleIdentifier: dictionary["CFBundleIdentifier"] as? String ?? "",
-                    displayName: IPABundleParsing.displayName(from: dictionary, appRoot: root)
+                    displayName: IPABundleParsing.displayName(from: dictionary, appRoot: root),
+                    extensionPointIdentifier: extensionPointIdentifier(in: dictionary)
                 )
             )
         }
 
         return result
+    }
+
+    private static func extensionPointIdentifier(in dictionary: [String: Any]) -> String {
+        guard let extensionInfo = dictionary["NSExtension"] as? [String: Any],
+              let identifier = extensionInfo["NSExtensionPointIdentifier"] as? String else {
+            return ""
+        }
+
+        return identifier
     }
 
     private static func extract(_ entry: Entry, from archive: Archive) throws -> Data {

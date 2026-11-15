@@ -93,7 +93,9 @@ final class ComparisonAndPresetTests: XCTestCase {
             urlScheme: "other"
         )
 
-        presets[0].apply(to: &applied, availableExtensions: archive.info.extensions)
+        let plan = presets[0].plan(applyingTo: applied, info: archive.info)
+        applied = plan.modifications
+
         XCTAssertEqual(applied.bundleIdentifier, "com.reuse.app")
         XCTAssertEqual(applied.displayName, "Reused")
         XCTAssertEqual(applied.removedExtensions, Set(archive.info.extensions.map(\.root)))
@@ -126,41 +128,122 @@ final class ComparisonAndPresetTests: XCTestCase {
     }
 
     func testPresetOnlyAppliesStoredFields() throws {
-        let preset = ExportPreset(name: "Version only", marketingVersion: "9.9")
+        let source = directory.appendingPathComponent("Preset.ipa")
+        try Fixtures.makeIPA(at: source)
+        let archive = try IPAArchive(url: source)
 
-        var modifications = IPAModifications(
-            bundleIdentifier: "com.example.app",
-            displayName: "Example",
-            marketingVersion: "1.2",
-            buildNumber: "42",
-            urlScheme: "example"
+        let preset = ExportPreset(name: "Version only", marketingVersion: "9.9")
+        let plan = preset.plan(
+            applyingTo: Fixtures.modifications(for: archive.info),
+            info: archive.info
         )
 
-        preset.apply(to: &modifications, availableExtensions: [])
-
-        XCTAssertEqual(modifications.marketingVersion, "9.9")
-        XCTAssertEqual(modifications.bundleIdentifier, "com.example.app")
-        XCTAssertEqual(modifications.displayName, "Example")
-        XCTAssertEqual(modifications.buildNumber, "42")
-        XCTAssertEqual(modifications.urlScheme, "example")
+        XCTAssertEqual(plan.changes.map(\.id), ["marketingVersion"])
+        XCTAssertEqual(plan.modifications.marketingVersion, "9.9")
+        XCTAssertEqual(plan.modifications.trimmedBundleIdentifier, archive.info.bundleIdentifier)
+        XCTAssertEqual(plan.modifications.trimmedDisplayName, archive.info.displayName)
+        XCTAssertEqual(plan.modifications.trimmedBuildNumber, archive.info.buildNumber)
+        XCTAssertEqual(plan.modifications.trimmedURLScheme, archive.info.urlScheme)
     }
 
     func testPresetDropsUnavailableExtensions() throws {
+        let source = directory.appendingPathComponent("Preset.ipa")
+        try Fixtures.makeIPA(at: source)
+        let archive = try IPAArchive(url: source)
+
         let preset = ExportPreset(
             name: "Old",
             removedExtensions: ["Payload/Other.app/PlugIns/Missing.appex/"]
         )
 
-        var modifications = IPAModifications(
-            bundleIdentifier: "com.example.app",
-            displayName: "Example",
-            marketingVersion: "1.2",
-            buildNumber: "42",
-            urlScheme: "example"
+        let plan = preset.plan(
+            applyingTo: Fixtures.modifications(for: archive.info),
+            info: archive.info
         )
 
-        preset.apply(to: &modifications, availableExtensions: [])
-        XCTAssertTrue(modifications.removedExtensions.isEmpty)
+        XCTAssertTrue(plan.modifications.removedExtensions.isEmpty)
+        XCTAssertTrue(plan.isEmpty)
+        XCTAssertEqual(plan.warnings.count, 1)
+        XCTAssertTrue(plan.warnings[0].contains("not in this app"))
+    }
+
+    func testPresetKeepsExtensionsPresentInTheApp() throws {
+        let source = directory.appendingPathComponent("Preset.ipa")
+        try Fixtures.makeIPA(at: source)
+        let archive = try IPAArchive(url: source)
+
+        let present = archive.info.extensions[0].root
+        let preset = ExportPreset(
+            name: "Mixed",
+            removedExtensions: [present, "Payload/Other.app/PlugIns/Missing.appex/"]
+        )
+
+        let plan = preset.plan(
+            applyingTo: Fixtures.modifications(for: archive.info),
+            info: archive.info
+        )
+
+        XCTAssertEqual(plan.modifications.removedExtensions, [present])
+        XCTAssertEqual(plan.changes.map(\.id), ["extensions"])
+        XCTAssertTrue(plan.warnings.contains { $0.contains("1 saved extension") })
+    }
+
+    func testPresetWarnsWhenSavedFromAnotherApp() throws {
+        let source = directory.appendingPathComponent("Preset.ipa")
+        try Fixtures.makeIPA(at: source)
+        let archive = try IPAArchive(url: source)
+
+        let preset = ExportPreset(
+            name: "Foreign",
+            bundleIdentifier: "com.elsewhere.app",
+            sourceBundleIdentifier: "com.original.app"
+        )
+
+        let plan = preset.plan(
+            applyingTo: Fixtures.modifications(for: archive.info),
+            info: archive.info
+        )
+
+        XCTAssertEqual(plan.warnings.first?.contains("com.original.app"), true)
+        XCTAssertTrue(plan.warnings[0].contains(archive.info.bundleIdentifier))
+        XCTAssertEqual(plan.modifications.bundleIdentifier, "com.elsewhere.app")
+    }
+
+    func testPresetFromSameAppDoesNotWarn() throws {
+        let source = directory.appendingPathComponent("Preset.ipa")
+        try Fixtures.makeIPA(at: source)
+        let archive = try IPAArchive(url: source)
+
+        let preset = ExportPreset(
+            name: "Local",
+            marketingVersion: "5.0",
+            sourceBundleIdentifier: archive.info.bundleIdentifier
+        )
+
+        let plan = preset.plan(
+            applyingTo: Fixtures.modifications(for: archive.info),
+            info: archive.info
+        )
+
+        XCTAssertTrue(plan.warnings.isEmpty)
+    }
+
+    func testPresetRecordsSourceBundleIdentifier() throws {
+        let source = directory.appendingPathComponent("Preset.ipa")
+        try Fixtures.makeIPA(at: source)
+        let archive = try IPAArchive(url: source)
+
+        var modifications = Fixtures.modifications(for: archive.info)
+        modifications.marketingVersion = "3.3"
+
+        let preset = ExportPreset.make(
+            from: modifications,
+            info: archive.info,
+            name: "Source",
+            availableExtensions: archive.info.extensions
+        )
+
+        XCTAssertEqual(preset.sourceBundleIdentifier, archive.info.bundleIdentifier)
     }
 
     func testSessionKeepsOriginalCopy() throws {

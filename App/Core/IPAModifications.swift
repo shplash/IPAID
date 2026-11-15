@@ -133,6 +133,7 @@ struct IPAModificationSummary: Equatable {
     var removedFiles: [String]
     var addedFiles: [String]
     var modifiedFiles: [String]
+    var iconFilePaths: [String]
     var warnings: [String]
 
     var isEmpty: Bool {
@@ -279,6 +280,10 @@ struct IPAModificationSummary: Equatable {
         self.removedFiles = removedFiles
         self.addedFiles = addedFiles
         self.modifiedFiles = Array(Set(modifiedFiles)).sorted()
+        self.iconFilePaths = Array(
+            Set(addedFiles + modifiedFiles)
+                .intersection(Set(info.iconPlan.slots.map(\.path)))
+        ).sorted()
         self.warnings = warnings
     }
 }
