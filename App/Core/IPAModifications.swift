@@ -30,6 +30,10 @@ struct IPAModifications: Equatable {
         urlScheme.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    var fingerprint: String {
+        IPASettingsFingerprint.make(self)
+    }
+
     func bundleIdentifierChanged(from info: IPABundleInfo) -> Bool {
         trimmedBundleIdentifier != info.bundleIdentifier
     }
@@ -269,10 +273,6 @@ struct IPAModificationSummary: Equatable {
             for slot in info.iconPlan.existingSlots where icon.files[slot.path] != nil {
                 modifiedFiles.append(slot.path)
             }
-        }
-
-        if modifications.icon != nil || !modifications.plistOverrides.isEmpty {
-            warnings.append("Existing signatures are invalid. Re-sign the exported IPA before installing.")
         }
 
         self.changes = changes
