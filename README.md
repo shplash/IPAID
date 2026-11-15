@@ -71,14 +71,10 @@ Use:
 
 to install or sign the exported IPA afterward.
 
-<br>
-
-## Support
-
-If IPAID has been useful to you, you can support its development as well as future projects.
-
-[Support Me](https://ko-fi.com/shplash) ♡
-
 ## License
 
 Licensed under MPL-2.0.
+
+## <a href="https://ko-fi.com/shplash"><img src="https://img.shields.io/badge/Support-ko--fi-FF5E5B?style=for-the-badge" alt="Support"></a>
+
+If IPAID has been useful to you, you can support its development as well as future projects.
