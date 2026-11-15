@@ -40,18 +40,16 @@ If you found IPAID useful, a GitHub star is always appreciated.
 
 ## Features
 
-- Edit app bundle identifiers
-- Rename apps before export
-- Edit URL schemes
-- Clone apps for side-by-side installs
-- Remove unwanted app extensions
-- Automatically rewrite kept extension bundle IDs
-- Export updated `.ipa` files
-- Customize exported IPA filenames
-- Compare original and exported file sizes
-- Keeps original IPA untouched
-- Fully iPhone-native workflow
-- Works before signing
+* Edit app bundle identifiers
+* Rename apps and change app icons
+* Edit URL schemes
+* Clone apps for side-by-side installs
+* Remove unwanted app extensions
+* Automatically rewrite kept extension bundle IDs
+* Browse IPA contents and edit supported text files
+* Review changes before export
+* Export modified .ipa files without changing the original
+* Fully iPhone-native workflow
 
 ## Why
 
