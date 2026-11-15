@@ -1,6 +1,5 @@
 import SwiftUI
 import Foundation
-import ZIPFoundation
 import UIKit
 
 struct ContentView: View {
@@ -513,11 +512,16 @@ struct ContentView: View {
             Spacer(minLength: 0)
 
             HStack(spacing: 8) {
-                headerButton(icon: "slider.horizontal.3", action: openPresets)
-                    .disabled(info == nil)
-                    .opacity(info == nil ? 0.45 : 1)
+                if !showInfo {
+                    headerButton(icon: "slider.horizontal.3", action: openPresets)
+                        .disabled(info == nil)
+                        .opacity(info == nil ? 0.45 : 1)
+                }
 
-                headerButton(icon: "gearshape.fill", action: toggleSettings)
+                headerButton(
+                    icon: showInfo ? "xmark" : "gearshape.fill",
+                    action: toggleSettings
+                )
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
