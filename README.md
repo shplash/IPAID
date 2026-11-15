@@ -5,7 +5,7 @@
 <h1 align="center">IPAID</h1>
 
 <p align="center">
-  Lightweight IPA editor for iOS 15+
+  Lightweight IPA editor for iOS 14+
 </p>
 
 <p align="center">
