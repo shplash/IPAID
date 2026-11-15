@@ -118,6 +118,34 @@ final class SummaryTests: XCTestCase {
         XCTAssertFalse(summary.iconFilePaths.contains(archive.info.infoPlistPath))
     }
 
+    func testIconFilesAreAddedForAssetCatalogApps() throws {
+        var app = TestApp()
+        app.iconFiles = nil
+        app.iconName = "AppIcon"
+        app.includesAssetCatalog = true
+
+        let source = directory.appendingPathComponent("Asset.ipa")
+        try Fixtures.makeIPA(app, at: source)
+        let archive = try IPAArchive(url: source)
+
+        var modifications = Fixtures.modifications(for: archive.info, app: app)
+        modifications.icon = IPAIconReplacement(
+            imageName: "replacement.png",
+            previewData: Data(),
+            files: Fixtures.iconFiles(for: archive.info.iconPlan)
+        )
+
+        let summary = IPAModificationSummary(
+            info: archive.info,
+            entries: archive.entries,
+            modifications: modifications
+        )
+
+        XCTAssertEqual(summary.iconFilePaths, summary.addedFiles.sorted())
+        XCTAssertEqual(summary.iconFilePaths.count, archive.info.iconPlan.slots.count)
+        XCTAssertEqual(summary.modifiedFiles, [archive.info.infoPlistPath])
+    }
+
     func testIconFilesAreEmptyWithoutAnIconChange() throws {
         let archive = try makeArchive()
 

@@ -9,7 +9,7 @@ struct ModificationPreviewView: View {
     let onExport: () -> Void
     let onClose: () -> Void
 
-    @State private var showsIconFiles = false
+    @State private var expandedIconGroup: String?
 
     private var hasIconChange: Bool {
         summary.changes.contains { $0.id == "icon" }
@@ -17,6 +17,14 @@ struct ModificationPreviewView: View {
 
     private var iconFiles: [String] {
         summary.iconFilePaths
+    }
+
+    private var addedIconFiles: [String] {
+        iconFiles.filter { summary.addedFiles.contains($0) }
+    }
+
+    private var modifiedIconFiles: [String] {
+        iconFiles.filter { summary.modifiedFiles.contains($0) }
     }
 
     private var otherAddedFiles: [String] {
@@ -27,8 +35,12 @@ struct ModificationPreviewView: View {
         summary.modifiedFiles.filter { !iconFiles.contains($0) }
     }
 
+    private var addedCount: Int {
+        otherAddedFiles.count + (addedIconFiles.isEmpty ? 0 : 1)
+    }
+
     private var modifiedCount: Int {
-        otherModifiedFiles.count + (iconFiles.isEmpty ? 0 : 1)
+        otherModifiedFiles.count + (modifiedIconFiles.isEmpty ? 0 : 1)
     }
 
     private var warnings: [String] {
@@ -63,7 +75,7 @@ struct ModificationPreviewView: View {
                     changesCard
                 }
 
-                if modifiedCount > 0 || !otherAddedFiles.isEmpty || !summary.removedFiles.isEmpty {
+                if addedCount > 0 || modifiedCount > 0 || !summary.removedFiles.isEmpty {
                     filesCard
                 }
 
@@ -163,14 +175,23 @@ struct ModificationPreviewView: View {
         VStack(alignment: .leading, spacing: 0) {
             IPACardHeader(icon: "doc.on.doc", title: "Files")
 
-            IPAFileCountRow(label: "Added", count: otherAddedFiles.count, color: .green)
+            IPAFileCountRow(label: "Added", count: addedCount, color: .green)
             IPAFileCountRow(label: "Removed", count: summary.removedFiles.count, color: .red)
             IPAFileCountRow(label: "Modified", count: modifiedCount, color: .orange)
 
-            if !otherAddedFiles.isEmpty {
+            if addedCount > 0 {
                 listSection(title: "Added")
-                IPAPathList(paths: otherAddedFiles, limit: 5)
-                    .padding(.top, 4)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    if !addedIconFiles.isEmpty {
+                        iconFileRow(group: "added", files: addedIconFiles)
+                    }
+
+                    if !otherAddedFiles.isEmpty {
+                        IPAPathList(paths: otherAddedFiles, limit: 5)
+                    }
+                }
+                .padding(.top, 2)
             }
 
             if !summary.removedFiles.isEmpty {
@@ -183,8 +204,8 @@ struct ModificationPreviewView: View {
                 listSection(title: "Modified")
 
                 VStack(alignment: .leading, spacing: 4) {
-                    if !iconFiles.isEmpty {
-                        iconFileRow
+                    if !modifiedIconFiles.isEmpty {
+                        iconFileRow(group: "modified", files: modifiedIconFiles)
                     }
 
                     if !otherModifiedFiles.isEmpty {
@@ -197,11 +218,13 @@ struct ModificationPreviewView: View {
         .cardStyle()
     }
 
-    private var iconFileRow: some View {
-        VStack(alignment: .leading, spacing: 6) {
+    private func iconFileRow(group: String, files: [String]) -> some View {
+        let isExpanded = expandedIconGroup == group
+
+        return VStack(alignment: .leading, spacing: 6) {
             Button {
                 withAnimation(.easeInOut(duration: 0.18)) {
-                    showsIconFiles.toggle()
+                    expandedIconGroup = isExpanded ? nil : group
                 }
             } label: {
                 HStack(spacing: 8) {
@@ -211,11 +234,11 @@ struct ModificationPreviewView: View {
 
                     Spacer(minLength: 8)
 
-                    Text(iconFiles.count == 1 ? "1 file" : "\(iconFiles.count) files")
+                    Text(files.count == 1 ? "1 file" : "\(files.count) files")
                         .font(.caption)
                         .foregroundColor(.secondary)
 
-                    Image(systemName: showsIconFiles ? "chevron.up" : "chevron.down")
+                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
                         .font(.caption.bold())
                         .foregroundColor(.secondary)
                 }
@@ -224,8 +247,8 @@ struct ModificationPreviewView: View {
             }
             .buttonStyle(.plain)
 
-            if showsIconFiles {
-                IPAPathList(paths: iconFiles, limit: iconFiles.count)
+            if isExpanded {
+                IPAPathList(paths: files, limit: files.count)
                     .padding(.bottom, 6)
             }
         }
