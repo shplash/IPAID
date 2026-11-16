@@ -53,7 +53,7 @@ If you found IPAID useful, a GitHub star is always appreciated.
 
 ## Why
 
-Most iOS signing apps tie bundle identifier editing to signing workflows or certificate setup.
+Most iOS signing apps tie IPA editing (the basic features) to signing workflows or certificate setup.
 
 IPAID directly edits the IPA itself before signing it.
 
